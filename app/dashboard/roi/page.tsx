@@ -93,7 +93,7 @@ export default async function ROIPage() {
               Hours Reclaimed
             </div>
             <div className="text-4xl md:text-5xl font-bold text-purple-400">
-              {timeSaved}
+              {timeSaved} <span className="text-2xl">hrs</span>
             </div>
           </div>
         </div>

@@ -8,7 +8,9 @@
       "Bash(npm run dev:*)",
       "Bash(npx next build:*)",
       "Bash(npm install:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nOSIRIS Dashboard - Complete implementation\n\nFeatures:\n- Executive dashboard with revenue metrics\n- Client Portal with calls, messages, invoices, payments, reviews\n- iPhone-style messaging UI\n- Audio player for call recordings\n- $15/job pricing model\n- 45 min time saved calculation per job\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(gh:*)"
     ]
   }
 }

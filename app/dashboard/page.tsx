@@ -77,7 +77,7 @@ export default async function DashboardPage() {
               Hours Reclaimed
             </div>
             <div className="text-4xl md:text-5xl font-bold neon-glow-subtle">
-              {timeSaved}
+              {timeSaved} <span className="text-2xl">hrs</span>
             </div>
             <div className="text-[10px] text-zinc-600">Your time back</div>
           </div>
