@@ -12,6 +12,7 @@ export interface Job {
   paid: boolean;
   price: number;
   phoneNumber: string;
+  email?: string;
   hours?: number;
   createdAt?: string;
   scheduledAt?: string;

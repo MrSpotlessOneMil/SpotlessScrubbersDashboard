@@ -8,14 +8,13 @@ import { Call, CallerProfile, Job } from "@/lib/google-sheets";
 type PipelineStage =
   | "New Lead"
   | "Quoted & Invoiced"
-  | "Deposit Paid"
-  | "Appointment Scheduled"
-  | "Job Completed"
-  | "Retargeting";
+  | "Scheduled / Underway"
+  | "Job Completed";
 
 type ClientRecord = {
   phoneNumber: string;
   name: string;
+  email?: string;
   jobs: Job[];
   calls: Call[];
   messages: CallerProfile["messages"];
@@ -26,20 +25,11 @@ type ClientRecord = {
 const stageOrder: PipelineStage[] = [
   "New Lead",
   "Quoted & Invoiced",
-  "Deposit Paid",
-  "Appointment Scheduled",
-  "Job Completed",
-  "Retargeting"
+  "Scheduled / Underway",
+  "Job Completed"
 ];
 
-const stageAccent: Record<PipelineStage, string> = {
-  "New Lead": "text-sky-200",
-  "Quoted & Invoiced": "text-amber-200",
-  "Deposit Paid": "text-emerald-200",
-  "Appointment Scheduled": "text-indigo-200",
-  "Job Completed": "text-zinc-200",
-  "Retargeting": "text-rose-200"
-};
+const stageTitleClass = "text-purple-200";
 
 function formatPhone(phone: string) {
   return phone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3");
@@ -49,26 +39,52 @@ function toDate(value?: string) {
   return value ? new Date(value) : new Date(0);
 }
 
-function resolveStage(job?: Job): PipelineStage {
-  if (!job) {
-    return "New Lead";
+function resolveJobStart(job: Job) {
+  const value = job.scheduledAt || job.date;
+  return value ? new Date(value) : null;
+}
+
+function resolveJobEnd(job: Job) {
+  const start = resolveJobStart(job);
+  if (!start || typeof job.hours !== "number") {
+    return null;
   }
-  if (job.status === "completed") {
-    return "Job Completed";
+  const end = new Date(start);
+  end.setMinutes(end.getMinutes() + Math.round(job.hours * 60));
+  return end;
+}
+
+function isJobCompleted(job: Job, now: Date) {
+  const end = resolveJobEnd(job);
+  return !!end && now >= end;
+}
+
+function resolveStage(client: ClientRecord, now: Date): PipelineStage {
+  let stageIndex = 0;
+
+  if (client.calls.length > 0 || client.jobs.length > 0) {
+    stageIndex = Math.max(stageIndex, 0);
   }
-  if (job.status === "cancelled") {
-    return "Retargeting";
+
+  const hasEmail = Boolean(client.email && client.email.trim());
+  const hasBooked = client.jobs.some((job) => job.booked);
+  if (hasEmail || hasBooked) {
+    stageIndex = Math.max(stageIndex, 1);
   }
-  if (job.paid) {
-    return "Deposit Paid";
+
+  const hasTeamAssigned = client.jobs.some(
+    (job) => job.cleaningTeam.length > 0
+  );
+  if (hasTeamAssigned) {
+    stageIndex = Math.max(stageIndex, 2);
   }
-  if (job.booked) {
-    return "Appointment Scheduled";
+
+  const hasCompleted = client.jobs.some((job) => isJobCompleted(job, now));
+  if (hasCompleted) {
+    stageIndex = Math.max(stageIndex, 3);
   }
-  if (job.invoiceSent || job.price > 0) {
-    return "Quoted & Invoiced";
-  }
-  return "New Lead";
+
+  return stageOrder[stageIndex];
 }
 
 export default function PipelinePage() {
@@ -76,6 +92,8 @@ export default function PipelinePage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [calls, setCalls] = useState<Call[]>([]);
   const [selectedClient, setSelectedClient] = useState<ClientRecord | null>(null);
+  const [now, setNow] = useState(() => new Date());
+  const [stageMemory, setStageMemory] = useState<Record<string, PipelineStage>>({});
   const [panelWidth, setPanelWidth] = useState(420);
   const [resizing, setResizing] = useState(false);
 
@@ -88,6 +106,13 @@ export default function PipelinePage() {
       setCalls(data.calls);
     }
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNow(new Date());
+    }, 60000);
+    return () => window.clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -110,13 +135,14 @@ export default function PipelinePage() {
     };
   }, [resizing]);
 
-  const clients = useMemo(() => {
+  const { clients, computedStages } = useMemo(() => {
     const map = new Map<string, ClientRecord>();
 
     profiles.forEach((profile) => {
       map.set(profile.phoneNumber, {
         phoneNumber: profile.phoneNumber,
         name: profile.callerName,
+        email: undefined,
         jobs: [],
         calls: [],
         messages: profile.messages,
@@ -129,14 +155,18 @@ export default function PipelinePage() {
       const entry = map.get(job.phoneNumber) || {
         phoneNumber: job.phoneNumber,
         name: job.client,
+        email: job.email,
         jobs: [],
         calls: [],
         messages: [],
         stage: "New Lead",
-        lastActivity: job.createdAt || job.date
+        lastActivity: job.createdAt || job.scheduledAt || job.date
       };
+      if (job.email && !entry.email) {
+        entry.email = job.email;
+      }
       entry.jobs.push(job);
-      const latest = job.createdAt || job.date;
+      const latest = job.createdAt || job.scheduledAt || job.date;
       if (toDate(latest) > toDate(entry.lastActivity)) {
         entry.lastActivity = latest;
       }
@@ -147,6 +177,7 @@ export default function PipelinePage() {
       const entry = map.get(call.phoneNumber) || {
         phoneNumber: call.phoneNumber,
         name: call.callerName,
+        email: undefined,
         jobs: [],
         calls: [],
         messages: [],
@@ -160,29 +191,60 @@ export default function PipelinePage() {
       map.set(call.phoneNumber, entry);
     });
 
+    const computedStageMap = new Map<string, PipelineStage>();
     const list = Array.from(map.values()).map((client) => {
-      const latestJob = [...client.jobs].sort(
-        (a, b) => toDate(b.createdAt || b.date).getTime() - toDate(a.createdAt || a.date).getTime()
-      )[0];
+      const computedStage = resolveStage(client, now);
+      computedStageMap.set(client.phoneNumber, computedStage);
+      const previousStage = stageMemory[client.phoneNumber];
+      const nextStage = previousStage
+        ? stageOrder[
+            Math.max(
+              stageOrder.indexOf(previousStage),
+              stageOrder.indexOf(computedStage)
+            )
+          ]
+        : computedStage;
       return {
         ...client,
-        stage: resolveStage(latestJob)
+        stage: nextStage
       };
     });
 
-    return list.sort(
-      (a, b) => toDate(b.lastActivity).getTime() - toDate(a.lastActivity).getTime()
-    );
-  }, [profiles, jobs, calls]);
+    return {
+      clients: list.sort(
+        (a, b) =>
+          toDate(b.lastActivity).getTime() - toDate(a.lastActivity).getTime()
+      ),
+      computedStages: computedStageMap
+    };
+  }, [profiles, jobs, calls, now, stageMemory]);
+
+  useEffect(() => {
+    if (!computedStages.size) {
+      return;
+    }
+
+    setStageMemory((prev) => {
+      const next = { ...prev };
+      computedStages.forEach((stage, phone) => {
+        const previousStage = prev[phone];
+        if (
+          !previousStage ||
+          stageOrder.indexOf(stage) > stageOrder.indexOf(previousStage)
+        ) {
+          next[phone] = stage;
+        }
+      });
+      return next;
+    });
+  }, [computedStages]);
 
   const pipeline = useMemo(() => {
     const grouped: Record<PipelineStage, ClientRecord[]> = {
       "New Lead": [],
       "Quoted & Invoiced": [],
-      "Deposit Paid": [],
-      "Appointment Scheduled": [],
-      "Job Completed": [],
-      "Retargeting": []
+      "Scheduled / Underway": [],
+      "Job Completed": []
     };
 
     clients.forEach((client) => {
@@ -206,19 +268,20 @@ export default function PipelinePage() {
     const items: { time: string; label: string }[] = [];
 
     selectedClient.jobs.forEach((job) => {
-      const baseTime = job.createdAt || job.date;
+      const baseTime = job.createdAt || job.scheduledAt || job.date;
       items.push({ time: baseTime, label: `Job created: ${job.title}` });
-      if (job.booked) {
-        items.push({ time: baseTime, label: "Appointment booked" });
+      if (job.booked || (selectedClient.email && selectedClient.email.trim())) {
+        items.push({ time: baseTime, label: "Quoted & invoiced" });
       }
-      if (job.paid) {
-        items.push({ time: job.date, label: "Deposit received" });
+      if (job.cleaningTeam.length > 0) {
+        items.push({ time: baseTime, label: "Scheduled / underway" });
       }
-      if (job.status === "completed") {
-        items.push({ time: job.date, label: "Job completed" });
-      }
-      if (job.status === "cancelled") {
-        items.push({ time: job.date, label: "Moved to retargeting" });
+      if (isJobCompleted(job, now)) {
+        const completedAt = resolveJobEnd(job);
+        items.push({
+          time: completedAt ? completedAt.toISOString() : job.scheduledAt || job.date,
+          label: "Job completed"
+        });
       }
     });
 
@@ -231,7 +294,7 @@ export default function PipelinePage() {
     return items
       .filter((item) => item.time)
       .sort((a, b) => toDate(b.time).getTime() - toDate(a.time).getTime());
-  }, [selectedClient]);
+  }, [selectedClient, now]);
 
   return (
     <div className="p-12 space-y-10">
@@ -245,14 +308,14 @@ export default function PipelinePage() {
           </p>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-6">
+        <div className="grid gap-4 lg:grid-cols-4">
           {stageOrder.map((stage) => (
             <div
               key={stage}
               className="rounded-3xl border border-zinc-800/60 bg-zinc-950/60 p-4"
             >
               <div className="flex items-center justify-between">
-                <div className={`text-xs uppercase tracking-[0.2em] ${stageAccent[stage]}`}>
+                <div className={`text-xs uppercase tracking-[0.2em] ${stageTitleClass}`}>
                   {stage}
                 </div>
                 <span className="text-xs text-zinc-500">
@@ -265,9 +328,11 @@ export default function PipelinePage() {
                     No clients here yet
                   </div>
                 ) : (
-                  pipeline[stage].map((client) => {
+                    pipeline[stage].map((client) => {
                     const latestJob = [...client.jobs].sort(
-                      (a, b) => toDate(b.createdAt || b.date).getTime() - toDate(a.createdAt || a.date).getTime()
+                      (a, b) =>
+                        toDate(b.createdAt || b.scheduledAt || b.date).getTime() -
+                        toDate(a.createdAt || a.scheduledAt || a.date).getTime()
                     )[0];
 
                     return (
@@ -291,7 +356,10 @@ export default function PipelinePage() {
                         </div>
                         {latestJob && (
                           <div className="mt-3 text-xs text-zinc-400">
-                            {latestJob.title} - {new Date(latestJob.date).toLocaleDateString("en-US", {
+                            {latestJob.title} -{" "}
+                            {new Date(
+                              latestJob.scheduledAt || latestJob.date
+                            ).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric"
                             })}
@@ -416,7 +484,7 @@ export default function PipelinePage() {
                             {job.title}
                           </div>
                           <div className="text-xs text-zinc-500 mt-1">
-                            {new Date(job.date).toLocaleDateString("en-US", {
+                            {new Date(job.scheduledAt || job.date).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
                               hour: "numeric",

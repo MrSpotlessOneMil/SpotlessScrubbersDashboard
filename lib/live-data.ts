@@ -30,7 +30,7 @@ export async function getLiveDashboardData(): Promise<DashboardData | null> {
   try {
     // Fetch jobs with customer info
     const jobsResult = await db.query(`
-      SELECT j.*, c.phone_number, c.name as client_name
+      SELECT j.*, c.phone_number, c.name as client_name, c.email as client_email
       FROM jobs j
       JOIN customers c ON j.customer_id = c.id
       ORDER BY j.date DESC
@@ -73,6 +73,7 @@ export async function getLiveDashboardData(): Promise<DashboardData | null> {
         paid: row.paid,
         price: parseFloat(row.price) || 0,
         phoneNumber: row.phone_number,
+        email: row.client_email || undefined,
         hours: row.hours ? parseFloat(row.hours) : undefined,
         createdAt,
         scheduledAt

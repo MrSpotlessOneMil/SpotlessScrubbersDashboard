@@ -27,7 +27,7 @@ type Conflict = {
 const START_HOUR = 7;
 const END_HOUR = 19;
 const HOUR_HEIGHT = 56;
-const MIN_SLOT = 15;
+const MIN_SLOT = 5;
 
 function toDateKey(date: Date) {
   const year = date.getFullYear();
@@ -37,11 +37,12 @@ function toDateKey(date: Date) {
 }
 
 function parseJobDate(job: Job) {
-  if (!job.date) {
+  const value = job.scheduledAt || job.date;
+  if (!value) {
     return new Date();
   }
 
-  const raw = String(job.date);
+  const raw = String(value);
   if (raw.includes("T")) {
     const datePart = raw.split("T")[0];
     if (raw.endsWith("Z") && raw.includes("00:00")) {
@@ -130,6 +131,94 @@ function timeToMinutes(time: string) {
   return hours * 60 + minutes;
 }
 
+type PositionedJob = {
+  job: Job;
+  top: number;
+  height: number;
+  left: number;
+  width: number;
+};
+
+function layoutDayJobs(dayJobs: Job[]): PositionedJob[] {
+  const totalMinutes = (END_HOUR - START_HOUR + 1) * 60;
+  const events = dayJobs
+    .map((job) => {
+      const startDate = parseJobDate(job);
+      const durationMinutes = Math.round(getDurationHours(job) * 60);
+      const startMinutes =
+        (startDate.getHours() - START_HOUR) * 60 + startDate.getMinutes();
+      const clampedStart = clamp(startMinutes, 0, totalMinutes);
+      const clampedEnd = clamp(clampedStart + durationMinutes, 0, totalMinutes);
+      return {
+        job,
+        start: clampedStart,
+        end: Math.max(clampedEnd, clampedStart + 15)
+      };
+    })
+    .sort((a, b) => a.start - b.start);
+
+  const clusters: typeof events[] = [];
+  let currentCluster: typeof events = [];
+  let clusterEnd = -1;
+
+  events.forEach((event) => {
+    if (currentCluster.length === 0 || event.start < clusterEnd) {
+      currentCluster.push(event);
+      clusterEnd = Math.max(clusterEnd, event.end);
+      return;
+    }
+
+    clusters.push(currentCluster);
+    currentCluster = [event];
+    clusterEnd = event.end;
+  });
+
+  if (currentCluster.length) {
+    clusters.push(currentCluster);
+  }
+
+  const positioned: PositionedJob[] = [];
+
+  clusters.forEach((cluster) => {
+    const columns: number[] = [];
+    const eventColumns = new Map<string, number>();
+
+    cluster.forEach((event) => {
+      let placed = false;
+      for (let i = 0; i < columns.length; i += 1) {
+        if (event.start >= columns[i]) {
+          columns[i] = event.end;
+          eventColumns.set(event.job.id, i);
+          placed = true;
+          break;
+        }
+      }
+
+      if (!placed) {
+        columns.push(event.end);
+        eventColumns.set(event.job.id, columns.length - 1);
+      }
+    });
+
+    const columnCount = columns.length;
+
+    cluster.forEach((event) => {
+      const columnIndex = eventColumns.get(event.job.id) ?? 0;
+      const width = 1 / columnCount;
+      const left = columnIndex * width;
+      positioned.push({
+        job: event.job,
+        top: (event.start / 60) * HOUR_HEIGHT,
+        height: Math.max(((event.end - event.start) / 60) * HOUR_HEIGHT, 48),
+        left,
+        width
+      });
+    });
+  });
+
+  return positioned;
+}
+
 function formatLocalDateTime(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -143,13 +232,15 @@ function JobChip({
   onSelect,
   onDragStart,
   onDragEnd,
-  isDragging
+  isDragging,
+  className
 }: {
   job: Job;
   onSelect: (job: Job) => void;
   onDragStart: (event: DragEvent<HTMLButtonElement>, job: Job) => void;
   onDragEnd: () => void;
   isDragging: boolean;
+  className?: string;
 }) {
   const team = job.cleaningTeam.length ? job.cleaningTeam.join(", ") : "Unassigned";
   return (
@@ -158,7 +249,7 @@ function JobChip({
       onDragStart={(event) => onDragStart(event, job)}
       onDragEnd={onDragEnd}
       onClick={() => onSelect(job)}
-      className={`w-full text-left text-xs rounded-lg px-2 py-1 transition-all ${
+      className={`w-full text-left text-xs rounded-lg px-2 py-1 transition-all ${className ?? ""} ${
         isDragging
           ? "bg-blue-600 text-white shadow-lg"
           : "bg-blue-600/15 text-blue-50 hover:bg-blue-600/30"
@@ -518,12 +609,16 @@ export default function CalendarPage() {
     setDragOverMinutes(null);
   };
 
-  const handleDrop = (dateKey: string, event: DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (
+    dateKey: string,
+    event: DragEvent<HTMLDivElement>
+  ) => {
     event.preventDefault();
     const jobId = event.dataTransfer.getData("text/plain");
     const job = jobs.find((item) => item.id === jobId);
 
     if (!job) {
+      setSaveError("Drop failed. Please try again.");
       return;
     }
 
@@ -538,17 +633,62 @@ export default function CalendarPage() {
         : timeToMinutes(existingTime);
 
     if (currentDateKey === dateKey && dropMinutes === timeToMinutes(existingTime)) {
+      setSaveError("Drop cancelled: same time selected.");
       return;
     }
 
-    setPendingMove({
-      job,
-      targetDate: dateKey,
-      targetTime: minutesToTime(dropMinutes)
-    });
-    setSelectedJob(job);
-    setRescheduleReason("");
+    const targetTimeValue = minutesToTime(dropMinutes);
+    const updatedDateTime = formatLocalDateTime(
+      new Date(`${dateKey}T${targetTimeValue}:00`)
+    );
+    const originalDate = job.date;
+    const originalScheduledAt = job.scheduledAt;
+
     setSaveError("");
+    setJobs((prev) =>
+      prev.map((item) =>
+        item.id === job.id
+          ? {
+              ...item,
+              date: updatedDateTime,
+              scheduledAt: updatedDateTime
+            }
+          : item
+      )
+    );
+    setDraggingJobId(null);
+    setDragOverDate(null);
+    setDragOverMinutes(null);
+
+    try {
+      const response = await fetch(`/api/jobs/${job.id}/reschedule`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: dateKey,
+          startTime: targetTimeValue,
+          hours: job.hours,
+          cleaningTeam: job.cleaningTeam
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to reschedule job");
+      }
+    } catch (error) {
+      setJobs((prev) =>
+        prev.map((item) =>
+          item.id === job.id
+            ? {
+                ...item,
+                date: originalDate,
+                scheduledAt: originalScheduledAt
+              }
+            : item
+        )
+      );
+      setSaveError("Reschedule failed. Please try again.");
+    }
   };
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
@@ -565,9 +705,9 @@ export default function CalendarPage() {
     const offsetY = clamp(event.clientY - rect.top, 0, rect.height);
     const totalMinutes = (END_HOUR - START_HOUR + 1) * 60;
     const minutes = clamp(
-      Math.round((offsetY / rect.height) * totalMinutes / MIN_SLOT) * MIN_SLOT,
+      Math.round((offsetY / rect.height) * totalMinutes),
       0,
-      totalMinutes
+      totalMinutes - 1
     );
     setDragOverDate(dateKey);
     setDragOverMinutes(minutes);
@@ -759,6 +899,11 @@ export default function CalendarPage() {
             </div>
           </div>
         </div>
+        {saveError && (
+          <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+            {saveError}
+          </div>
+        )}
 
         {viewMode === "month" && (
           <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 overflow-hidden">
@@ -809,8 +954,14 @@ export default function CalendarPage() {
                       key={dateKey}
                       isActive={dragOverDate === dateKey}
                       onDragOver={handleDragOver}
-                      onDragEnter={() => setDragOverDate(dateKey)}
-                      onDragLeave={() => setDragOverDate(null)}
+                      onDragEnter={() => {
+                        setDragOverDate(dateKey);
+                        setDragOverMinutes(null);
+                      }}
+                      onDragLeave={() => {
+                        setDragOverDate(null);
+                        setDragOverMinutes(null);
+                      }}
                       onDrop={(event) => handleDrop(dateKey, event)}
                     >
                       <div
@@ -902,7 +1053,10 @@ export default function CalendarPage() {
                         isActive={dragOverDate === dateKey}
                         onDragOver={(event) => handleColumnDragOver(dateKey, event)}
                         onDragEnter={() => setDragOverDate(dateKey)}
-                        onDragLeave={() => setDragOverDate(null)}
+                        onDragLeave={() => {
+                          setDragOverDate(null);
+                          setDragOverMinutes(null);
+                        }}
                         onDrop={(event) => handleDrop(dateKey, event)}
                       >
                         {dayHours.map((hour) => (
@@ -926,30 +1080,33 @@ export default function CalendarPage() {
                             </div>
                           </div>
                         )}
-                        {dayJobs.map((job) => {
-                          const start = parseJobDate(job);
-                          const duration = getDurationHours(job);
-                          const minutesFromStart =
-                            (start.getHours() - START_HOUR) * 60 + start.getMinutes();
-                          const top = (minutesFromStart / 60) * HOUR_HEIGHT;
-                          const height = Math.max(duration * HOUR_HEIGHT, 52);
-
-                          return (
-                            <div
-                              key={job.id}
-                              className="absolute left-3 right-3"
-                              style={{ top, height }}
-                            >
-                              <JobChip
-                                job={job}
-                                onSelect={setSelectedJob}
-                                onDragStart={handleDragStart}
-                                onDragEnd={handleDragEnd}
-                                isDragging={draggingJobId === job.id}
-                              />
-                            </div>
-                          );
-                        })}
+                        {layoutDayJobs(dayJobs).map(
+                          ({ job, top, height, left, width }) => {
+                            const leftPercent = left * 100;
+                            const widthPercent = width * 100;
+                            return (
+                              <div
+                                key={job.id}
+                                className="absolute"
+                                style={{
+                                  top,
+                                  height,
+                                  left: `calc(${leftPercent}% + 6px)`,
+                                  width: `calc(${widthPercent}% - 12px)`
+                                }}
+                              >
+                                <JobChip
+                                  job={job}
+                                  onSelect={setSelectedJob}
+                                  onDragStart={handleDragStart}
+                                  onDragEnd={handleDragEnd}
+                                  isDragging={draggingJobId === job.id}
+                                  className="h-full flex flex-col justify-between"
+                                />
+                              </div>
+                            );
+                          }
+                        )}
                       </DayColumn>
                     </div>
                   );
