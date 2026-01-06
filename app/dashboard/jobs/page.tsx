@@ -51,9 +51,9 @@ export default async function JobsPage() {
                     </div>
                     <div className="flex items-center gap-6 text-xs text-zinc-600">
                       <span>{formatDate(job.date)}</span>
-                      <span>•</span>
+                      <span>-</span>
                       <span className="capitalize">{job.status}</span>
-                      <span>•</span>
+                      <span>-</span>
                       <span>Team: {job.cleaningTeam.join(', ')}</span>
                     </div>
                   </div>

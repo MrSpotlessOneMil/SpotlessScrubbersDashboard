@@ -1,43 +1,33 @@
 import { Pool } from 'pg';
-import { DashboardData, Job, Call, CallerProfile, Message } from './google-sheets';
+import { DashboardData, Job, Call, CallerProfile } from './google-sheets';
 
 // Connection pool - only created if DATABASE_URL exists
 let pool: Pool | null = null;
 
 function getPool(): Pool | null {
-  console.log('🔍 [DEBUG] getPool called');
-  console.log('🔍 [DEBUG] DATABASE_URL exists:', !!process.env.DATABASE_URL);
-  console.log('🔍 [DEBUG] NODE_ENV:', process.env.NODE_ENV);
 
   if (!process.env.DATABASE_URL) {
-    console.log('❌ [DEBUG] No DATABASE_URL found, returning null');
     return null;
   }
 
   if (!pool) {
-    console.log('✅ [DEBUG] Creating new connection pool');
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
     });
-    console.log('✅ [DEBUG] Pool created');
   } else {
-    console.log('✅ [DEBUG] Reusing existing pool');
   }
 
   return pool;
 }
 
 export async function getLiveDashboardData(): Promise<DashboardData | null> {
-  console.log('🚀 [DEBUG] getLiveDashboardData called');
   const db = getPool();
   if (!db) {
-    console.log('❌ [DEBUG] No pool available, returning null');
     return null;
   }
 
   try {
-    console.log('📊 [DEBUG] Querying jobs table...');
     // Fetch jobs with customer info
     const jobsResult = await db.query(`
       SELECT j.*, c.phone_number, c.name as client_name
@@ -45,7 +35,6 @@ export async function getLiveDashboardData(): Promise<DashboardData | null> {
       JOIN customers c ON j.customer_id = c.id
       ORDER BY j.date DESC
     `);
-    console.log(`✅ [DEBUG] Found ${jobsResult.rows.length} jobs`);
 
     // Fetch calls with audio URLs
     const callsResult = await db.query(`
@@ -75,7 +64,8 @@ export async function getLiveDashboardData(): Promise<DashboardData | null> {
       booked: row.booked,
       paid: row.paid,
       price: parseFloat(row.price) || 0,
-      phoneNumber: row.phone_number
+      phoneNumber: row.phone_number,
+      hours: row.hours ? parseFloat(row.hours) : undefined
     }));
 
     // Transform calls to app format
@@ -130,10 +120,6 @@ export async function getLiveDashboardData(): Promise<DashboardData | null> {
     const jobsBooked = jobs.filter(j => j.booked).length;
     const callsAnswered = calls.length;
 
-    console.log('✅ [DEBUG] Successfully fetched live data:');
-    console.log(`   - Jobs: ${jobs.length} (${jobsBooked} booked)`);
-    console.log(`   - Calls: ${calls.length}`);
-    console.log(`   - Profiles: ${profiles.length}`);
 
     return {
       jobsBooked,
@@ -146,12 +132,7 @@ export async function getLiveDashboardData(): Promise<DashboardData | null> {
       isLiveData: true
     };
   } catch (error) {
-    console.error('❌ [DEBUG] Live data fetch error:', error);
-    if (error instanceof Error) {
-      console.error('❌ [DEBUG] Error name:', error.name);
-      console.error('❌ [DEBUG] Error message:', error.message);
-      console.error('❌ [DEBUG] Error stack:', error.stack);
-    }
+    console.error('Live data fetch error:', error);
     return null;
   }
 }
@@ -202,3 +183,4 @@ export async function saveLiveSettings(settings: { spreadsheetId: string; hourly
 }
 
 export { pool };
+

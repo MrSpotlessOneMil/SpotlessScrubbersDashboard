@@ -12,6 +12,7 @@ export interface Job {
   paid: boolean;
   price: number;
   phoneNumber: string;
+  hours?: number;
   invoiceSent?: boolean;
   invoiceDate?: string;
   paymentDate?: string;

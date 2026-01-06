@@ -44,7 +44,7 @@ export function ROIFooter({ revenue, laborCost, osirisCost }: ROIFooterProps) {
         {/* Bottom Message */}
         <div className="text-center pt-8 border-t border-zinc-800/50">
           <p className="text-sm text-zinc-500">
-            OSIRIS paid for itself <span className="text-purple-400 font-medium">{multiplier}×</span> over.
+            OSIRIS paid for itself <span className="text-purple-400 font-medium">{multiplier}x</span> over.
           </p>
         </div>
       </div>

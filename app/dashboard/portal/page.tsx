@@ -211,7 +211,7 @@ export default function ClientPortalPage() {
                             <div>
                               <div className="font-medium text-zinc-300">{job.title}</div>
                               <div className="text-xs text-zinc-600 mt-1">
-                                {new Date(job.date).toLocaleDateString()} • {job.status}
+                                {new Date(job.date).toLocaleDateString()} - {job.status}
                               </div>
                             </div>
                             <div className="text-right">
@@ -387,7 +387,7 @@ export default function ClientPortalPage() {
                                         i < (job.reviewRating || 0) ? 'text-yellow-400' : 'text-zinc-700'
                                       }`}
                                     >
-                                      ★
+                                      *
                                     </span>
                                   ))}
                                 </div>

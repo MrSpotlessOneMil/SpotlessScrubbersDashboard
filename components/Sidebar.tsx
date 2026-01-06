@@ -6,9 +6,8 @@ import { usePathname } from "next/navigation";
 const navItems = [
   { href: "/dashboard", label: "Overview" },
   { href: "/dashboard/roi", label: "Impact" },
+  { href: "/dashboard/pipeline", label: "Client Status" },
   { href: "/dashboard/portal", label: "Client Portal" },
-  { href: "/dashboard/jobs", label: "Activity" },
-  { href: "/dashboard/calls", label: "Conversations" },
   { href: "/dashboard/calendar", label: "Calendar" },
   { href: "/dashboard/settings", label: "Settings" },
 ];

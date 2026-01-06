@@ -141,7 +141,7 @@ export default function ClientsPage() {
                   onClick={() => setSelectedClient(null)}
                   className="text-zinc-600 hover:text-zinc-400 text-2xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-zinc-800/50"
                 >
-                  ×
+                  x
                 </button>
               </div>
 
@@ -219,7 +219,7 @@ export default function ClientsPage() {
                         <span className="text-emerald-400 font-semibold">${job.price}</span>
                       </div>
                       <div className="text-xs text-zinc-600">
-                        {new Date(job.date).toLocaleDateString()} • {job.status}
+                        {new Date(job.date).toLocaleDateString()} - {job.status}
                       </div>
                     </div>
                   ))

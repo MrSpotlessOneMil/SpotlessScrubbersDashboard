@@ -12,11 +12,6 @@ export default async function DashboardPage() {
   const osirisCost = bookedJobs * 15; // $15 per booked job
   const netProfit = totalRevenue - osirisCost;
 
-  // Close Rate
-  const closeRate = data.callsAnswered > 0
-    ? ((data.jobsBooked / data.callsAnswered) * 100).toFixed(0)
-    : "0";
-
   const recentActivity = [...data.jobs]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 3);
@@ -40,48 +35,44 @@ export default async function DashboardPage() {
 
         {/* EXECUTIVE METRICS - 4 Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Booked Jobs */}
+          <div className="glass-card rounded-3xl p-6 text-center space-y-3">
+            <div className="text-[10px] text-zinc-500 uppercase tracking-[0.2em] font-medium">
+              Booked Jobs
+            </div>
+            <div className="text-4xl md:text-5xl font-bold neon-glow-subtle">
+              {bookedJobs}
+            </div>
+          </div>
+
+          {/* Calls Answered */}
+          <div className="glass-card rounded-3xl p-6 text-center space-y-3">
+            <div className="text-[10px] text-zinc-500 uppercase tracking-[0.2em] font-medium">
+              Calls Answered
+            </div>
+            <div className="text-4xl md:text-5xl font-bold neon-glow-subtle">
+              {data.callsAnswered}
+            </div>
+          </div>
+
+          {/* Hours Saved */}
+          <div className="glass-card rounded-3xl p-6 text-center space-y-3">
+            <div className="text-[10px] text-zinc-500 uppercase tracking-[0.2em] font-medium">
+              Hours Saved
+            </div>
+            <div className="text-4xl md:text-5xl font-bold neon-glow-subtle">
+              {timeSaved} <span className="text-2xl">hrs</span>
+            </div>
+          </div>
+
           {/* Net Profit */}
           <div className="glass-card rounded-3xl p-6 text-center space-y-3">
             <div className="text-[10px] text-zinc-500 uppercase tracking-[0.2em] font-medium">
               Net Profit
             </div>
-            <div className="text-4xl md:text-5xl font-bold state-positive truncate">
+            <div className="text-4xl md:text-5xl font-bold state-positive">
               ${netProfit.toLocaleString()}
             </div>
-            <div className="text-[10px] text-zinc-600">After OSIRIS fees</div>
-          </div>
-
-          {/* Revenue Generated */}
-          <div className="glass-card rounded-3xl p-6 text-center space-y-3">
-            <div className="text-[10px] text-zinc-500 uppercase tracking-[0.2em] font-medium">
-              Revenue Generated
-            </div>
-            <div className="text-4xl md:text-5xl font-bold neon-glow-subtle truncate">
-              ${totalRevenue.toLocaleString()}
-            </div>
-            <div className="text-[10px] text-zinc-600">By OSIRIS</div>
-          </div>
-
-          {/* Close Rate */}
-          <div className="glass-card rounded-3xl p-6 text-center space-y-3">
-            <div className="text-[10px] text-zinc-500 uppercase tracking-[0.2em] font-medium">
-              Close Rate
-            </div>
-            <div className="text-4xl md:text-5xl font-bold neon-glow-subtle">
-              {closeRate}%
-            </div>
-            <div className="text-[10px] text-zinc-600">Calls to bookings</div>
-          </div>
-
-          {/* Time Reclaimed */}
-          <div className="glass-card rounded-3xl p-6 text-center space-y-3">
-            <div className="text-[10px] text-zinc-500 uppercase tracking-[0.2em] font-medium">
-              Hours Reclaimed
-            </div>
-            <div className="text-4xl md:text-5xl font-bold neon-glow-subtle">
-              {timeSaved} <span className="text-2xl">hrs</span>
-            </div>
-            <div className="text-[10px] text-zinc-600">Your time back</div>
           </div>
         </div>
 
@@ -107,10 +98,10 @@ export default async function DashboardPage() {
                         month: 'short',
                         day: 'numeric',
                       })}
-                      {' • '}
+                      {' - '}
                       <span className="capitalize">{job.status}</span>
-                      {' • '}
-                      Team: {job.cleaningTeam.join(', ')}
+                      {' - '}
+                      Team: {job.cleaningTeam.length ? job.cleaningTeam.join(', ') : 'Unassigned'}
                     </div>
                   </div>
                   <div className="text-right space-y-1">
@@ -138,3 +129,7 @@ export default async function DashboardPage() {
     </div>
   );
 }
+
+
+
+
