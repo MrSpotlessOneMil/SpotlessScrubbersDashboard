@@ -12,9 +12,56 @@ export default async function DashboardPage() {
   const osirisCost = bookedJobs * 15; // $15 per booked job
   const netProfit = totalRevenue - osirisCost;
 
-  const recentActivity = [...data.jobs]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 3);
+  const activityItems = [
+    ...data.jobs.map((job) => ({
+      id: `job-${job.id}`,
+      type: "New Job",
+      client: job.client,
+      summary: job.title,
+      time: job.createdAt || job.date,
+      meta: `Team: ${job.cleaningTeam.length ? job.cleaningTeam.join(", ") : "Unassigned"}`
+    })),
+    ...data.jobs
+      .filter((job) => job.status !== "scheduled")
+      .map((job) => ({
+        id: `status-${job.id}`,
+        type: "Status Change",
+        client: job.client,
+        summary: `${job.title} - ${job.status}`,
+        time: job.date,
+        meta: job.paid ? "Payment confirmed" : "Status updated"
+      })),
+    ...data.calls.map((call) => ({
+      id: `call-${call.id}`,
+      type: "New Call",
+      client: call.callerName,
+      summary: call.outcome ? `Outcome: ${call.outcome}` : "Call completed",
+      time: call.date,
+      meta: `Duration: ${Math.round(call.durationSeconds / 60)} min`
+    })),
+    ...data.profiles.flatMap((profile) =>
+      profile.messages.map((message, index) => ({
+        id: `msg-${profile.phoneNumber}-${index}`,
+        type: message.content.toLowerCase().includes("rescheduled")
+          ? "Reschedule"
+          : message.role === "client"
+          ? "Message Received"
+          : "Message Sent",
+        client: profile.callerName,
+        summary:
+          message.content.length > 72
+            ? `${message.content.slice(0, 72)}...`
+            : message.content,
+        time: message.timestamp,
+        meta: message.role === "client" ? "Client message" : "OSIRIS response"
+      }))
+    )
+  ];
+
+  const recentActivity = activityItems
+    .filter((item) => item.time)
+    .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+    .slice(0, 6);
 
   return (
     <div className="p-12 space-y-12">
@@ -84,35 +131,32 @@ export default async function DashboardPage() {
             </h2>
           </div>
 
-          <div className="space-y-4">
-            {recentActivity.map((job) => (
+          <div className="space-y-3">
+            {recentActivity.map((item) => (
               <div
-                key={job.id}
-                className="status-indicator rounded-2xl p-6"
+                key={item.id}
+                className="status-indicator rounded-2xl p-5"
               >
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-6">
                   <div className="space-y-2">
-                    <div className="text-base font-medium text-zinc-200">{job.client}</div>
-                    <div className="text-xs text-zinc-600">
-                      {new Date(job.date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                      {' - '}
-                      <span className="capitalize">{job.status}</span>
-                      {' - '}
-                      Team: {job.cleaningTeam.length ? job.cleaningTeam.join(', ') : 'Unassigned'}
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] px-2 py-1 rounded-full border border-zinc-700 text-zinc-400 uppercase tracking-wider">
+                        {item.type}
+                      </span>
+                      <span className="text-xs text-zinc-600">
+                        {new Date(item.time).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit"
+                        })}
+                      </span>
                     </div>
-                  </div>
-                  <div className="text-right space-y-1">
-                    <div className="text-xl font-semibold text-emerald-400">
-                      ${job.price}
+                    <div className="text-base font-medium text-zinc-200">
+                      {item.client}
                     </div>
-                    {job.paid && (
-                      <div className="text-[10px] px-2 py-1 rounded-full bg-emerald-400/10 text-emerald-400 uppercase tracking-wider">
-                        Paid
-                      </div>
-                    )}
+                    <div className="text-sm text-zinc-400">{item.summary}</div>
+                    <div className="text-xs text-zinc-600">{item.meta}</div>
                   </div>
                 </div>
               </div>

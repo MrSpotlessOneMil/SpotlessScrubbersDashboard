@@ -25,6 +25,7 @@ CREATE TABLE jobs (
   customer_id INTEGER REFERENCES customers(id),
   title VARCHAR(255) NOT NULL,
   date DATE NOT NULL,
+  scheduled_at TIMESTAMP,
   status VARCHAR(50) DEFAULT 'scheduled', -- scheduled, completed, cancelled
   cleaning_team TEXT[], -- array of team member names
   booked BOOLEAN DEFAULT false,

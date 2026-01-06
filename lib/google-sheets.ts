@@ -13,6 +13,8 @@ export interface Job {
   price: number;
   phoneNumber: string;
   hours?: number;
+  createdAt?: string;
+  scheduledAt?: string;
   invoiceSent?: boolean;
   invoiceDate?: string;
   paymentDate?: string;

@@ -53,20 +53,31 @@ export async function getLiveDashboardData(): Promise<DashboardData | null> {
     `);
 
     // Transform jobs to app format
-    const jobs: Job[] = jobsResult.rows.map(row => ({
-      id: row.id.toString(),
-      title: row.title,
-      date: row.date,
-      status: row.status,
-      client: row.client_name,
-      cleaningTeam: row.cleaning_team || [],
-      callDurationSeconds: 0,
-      booked: row.booked,
-      paid: row.paid,
-      price: parseFloat(row.price) || 0,
-      phoneNumber: row.phone_number,
-      hours: row.hours ? parseFloat(row.hours) : undefined
-    }));
+    const jobs: Job[] = jobsResult.rows.map(row => {
+      const dateValue = row.scheduled_at ?? row.date;
+      const dateString = dateValue instanceof Date ? dateValue.toISOString() : String(dateValue);
+      const createdValue = row.created_at;
+      const createdAt = createdValue instanceof Date ? createdValue.toISOString() : createdValue ? String(createdValue) : undefined;
+      const scheduledValue = row.scheduled_at;
+      const scheduledAt = scheduledValue instanceof Date ? scheduledValue.toISOString() : scheduledValue ? String(scheduledValue) : undefined;
+
+      return {
+        id: row.id.toString(),
+        title: row.title,
+        date: dateString,
+        status: row.status,
+        client: row.client_name,
+        cleaningTeam: row.cleaning_team || [],
+        callDurationSeconds: 0,
+        booked: row.booked,
+        paid: row.paid,
+        price: parseFloat(row.price) || 0,
+        phoneNumber: row.phone_number,
+        hours: row.hours ? parseFloat(row.hours) : undefined,
+        createdAt,
+        scheduledAt
+      };
+    });
 
     // Transform calls to app format
     const calls: Call[] = callsResult.rows.map(row => ({
