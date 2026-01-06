@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "pg";
 
 let pool: Pool | null = null;
@@ -19,8 +19,8 @@ function getPool() {
 }
 
 export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const db = getPool();
   if (!db) {
@@ -30,6 +30,7 @@ export async function POST(
     );
   }
 
+  const { id } = await params;
   const body = await request.json();
   const date = String(body.date || "").trim();
   const reason = String(body.reason || "").trim();
@@ -41,7 +42,7 @@ export async function POST(
   try {
     const updateResult = await db.query(
       "UPDATE jobs SET date = $1 WHERE id = $2 RETURNING id, customer_id, date",
-      [date, params.id]
+      [date, id]
     );
 
     if (!updateResult.rows[0]) {

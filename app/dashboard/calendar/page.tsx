@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  DndContext,
-  DragEndEvent,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  useDraggable,
-  useDroppable
-} from "@dnd-kit/core";
+  useEffect,
+  useMemo,
+  useState,
+  type DragEvent,
+  type ReactNode
+} from "react";
 import { Job } from "@/lib/google-sheets";
 import { Badge } from "@/components/ui/badge";
 
@@ -86,20 +83,24 @@ function getDaysInMonth(date: Date) {
   };
 }
 
-function JobChip({ job, onSelect }: { job: Job; onSelect: (job: Job) => void }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id: job.id });
-
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
-
+function JobChip({
+  job,
+  onSelect,
+  onDragStart,
+  onDragEnd,
+  isDragging
+}: {
+  job: Job;
+  onSelect: (job: Job) => void;
+  onDragStart: (event: DragEvent<HTMLButtonElement>, job: Job) => void;
+  onDragEnd: () => void;
+  isDragging: boolean;
+}) {
   return (
     <button
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
+      draggable
+      onDragStart={(event) => onDragStart(event, job)}
+      onDragEnd={onDragEnd}
       onClick={() => onSelect(job)}
       className={`w-full text-left text-xs rounded px-2 py-1 transition-colors ${
         isDragging
@@ -114,19 +115,28 @@ function JobChip({ job, onSelect }: { job: Job; onSelect: (job: Job) => void }) 
 }
 
 function DayDropZone({
-  dateKey,
-  children
+  children,
+  isActive,
+  onDragEnter,
+  onDragLeave,
+  onDragOver,
+  onDrop
 }: {
-  dateKey: string;
   children: ReactNode;
+  isActive: boolean;
+  onDragEnter: (event: DragEvent<HTMLDivElement>) => void;
+  onDragLeave: (event: DragEvent<HTMLDivElement>) => void;
+  onDragOver: (event: DragEvent<HTMLDivElement>) => void;
+  onDrop: (event: DragEvent<HTMLDivElement>) => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: dateKey });
-
   return (
     <div
-      ref={setNodeRef}
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
       className={`rounded-lg border border-zinc-800/40 p-2 min-h-[120px] transition-colors ${
-        isOver ? "bg-purple-500/10 border-purple-500/60" : "bg-zinc-900/40"
+        isActive ? "bg-purple-500/10 border-purple-500/60" : "bg-zinc-900/40"
       }`}
     >
       {children}
@@ -135,19 +145,28 @@ function DayDropZone({
 }
 
 function DayColumn({
-  dateKey,
-  children
+  children,
+  isActive,
+  onDragEnter,
+  onDragLeave,
+  onDragOver,
+  onDrop
 }: {
-  dateKey: string;
   children: ReactNode;
+  isActive: boolean;
+  onDragEnter: (event: DragEvent<HTMLDivElement>) => void;
+  onDragLeave: (event: DragEvent<HTMLDivElement>) => void;
+  onDragOver: (event: DragEvent<HTMLDivElement>) => void;
+  onDrop: (event: DragEvent<HTMLDivElement>) => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: dateKey });
-
   return (
     <div
-      ref={setNodeRef}
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
       className={`relative rounded-xl border border-zinc-800/40 bg-zinc-900/40 ${
-        isOver ? "ring-1 ring-purple-400/60" : ""
+        isActive ? "ring-1 ring-purple-400/60" : ""
       }`}
       style={{ height: HOUR_HEIGHT * (END_HOUR - START_HOUR + 1) }}
     >
@@ -166,10 +185,8 @@ export default function CalendarPage() {
   const [rescheduleReason, setRescheduleReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
-  );
+  const [draggingJobId, setDraggingJobId] = useState<string | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -194,26 +211,40 @@ export default function CalendarPage() {
     return map;
   }, [jobs]);
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { over, active } = event;
-    if (!over) {
-      return;
-    }
+  const handleDragStart = (event: DragEvent<HTMLButtonElement>, job: Job) => {
+    event.dataTransfer.setData("text/plain", job.id);
+    event.dataTransfer.effectAllowed = "move";
+    setDraggingJobId(job.id);
+  };
 
-    const job = jobs.find((item) => item.id === active.id);
+  const handleDragEnd = () => {
+    setDraggingJobId(null);
+    setDragOverDate(null);
+  };
+
+  const handleDrop = (dateKey: string, event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const jobId = event.dataTransfer.getData("text/plain");
+    const job = jobs.find((item) => item.id === jobId);
+
     if (!job) {
       return;
     }
 
-    const targetDate = String(over.id);
     const currentDateKey = toDateKey(parseJobDate(job));
-    if (currentDateKey === targetDate) {
+    if (currentDateKey === dateKey) {
       return;
     }
 
-    setPendingMove({ job, targetDate });
+    setPendingMove({ job, targetDate: dateKey });
     setRescheduleReason("");
     setSaveError("");
+    setDragOverDate(null);
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
   };
 
   const handleRescheduleConfirm = async () => {
@@ -309,179 +340,199 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          {viewMode === "month" && (
-            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-              <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-                <button
-                  onClick={() => setCurrentDate(new Date(year, month - 1, 1))}
-                  className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                >
-                  Previous
-                </button>
-                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                  {monthName}
-                </h2>
-                <button
-                  onClick={() => setCurrentDate(new Date(year, month + 1, 1))}
-                  className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                >
-                  Next
-                </button>
+        {viewMode === "month" && (
+          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+            <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+              <button
+                onClick={() => setCurrentDate(new Date(year, month - 1, 1))}
+                className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                Previous
+              </button>
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                {monthName}
+              </h2>
+              <button
+                onClick={() => setCurrentDate(new Date(year, month + 1, 1))}
+                className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                Next
+              </button>
+            </div>
+
+            <div className="p-4">
+              <div className="grid grid-cols-7 gap-2 mb-2">
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
+                  (day) => (
+                    <div
+                      key={day}
+                      className="text-center text-xs font-semibold text-zinc-600 dark:text-zinc-400 py-2"
+                    >
+                      {day}
+                    </div>
+                  )
+                )}
               </div>
 
-              <div className="p-4">
-                <div className="grid grid-cols-7 gap-2 mb-2">
-                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
-                    (day) => (
+              <div className="grid grid-cols-7 gap-2">
+                {Array.from({ length: startingDayOfWeek }).map((_, idx) => (
+                  <div key={`empty-${idx}`} className="min-h-[120px]" />
+                ))}
+
+                {Array.from({ length: daysInMonth }).map((_, idx) => {
+                  const date = idx + 1;
+                  const dateKey = toDateKey(new Date(year, month, date));
+                  const dayJobs = jobsByDate.get(dateKey) || [];
+                  const isToday =
+                    new Date().getDate() === date &&
+                    new Date().getMonth() === month &&
+                    new Date().getFullYear() === year;
+
+                  return (
+                    <DayDropZone
+                      key={dateKey}
+                      isActive={dragOverDate === dateKey}
+                      onDragOver={handleDragOver}
+                      onDragEnter={() => setDragOverDate(dateKey)}
+                      onDragLeave={() => setDragOverDate(null)}
+                      onDrop={(event) => handleDrop(dateKey, event)}
+                    >
                       <div
-                        key={day}
-                        className="text-center text-xs font-semibold text-zinc-600 dark:text-zinc-400 py-2"
+                        className={`text-xs font-semibold mb-2 ${
+                          isToday
+                            ? "text-purple-400"
+                            : "text-zinc-600 dark:text-zinc-400"
+                        }`}
                       >
-                        {day}
+                        {date}
                       </div>
-                    )
-                  )}
-                </div>
+                      <div className="space-y-1">
+                        {dayJobs.map((job) => (
+                          <JobChip
+                            key={job.id}
+                            job={job}
+                            onSelect={setSelectedJob}
+                            onDragStart={handleDragStart}
+                            onDragEnd={handleDragEnd}
+                            isDragging={draggingJobId === job.id}
+                          />
+                        ))}
+                      </div>
+                    </DayDropZone>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
-                <div className="grid grid-cols-7 gap-2">
-                  {Array.from({ length: startingDayOfWeek }).map((_, idx) => (
-                    <div key={`empty-${idx}`} className="min-h-[120px]" />
-                  ))}
+        {viewMode !== "month" && (
+          <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+            <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+              <button
+                onClick={() =>
+                  setCurrentDate(addDays(currentDate, viewMode === "day" ? -1 : -7))
+                }
+                className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                Previous
+              </button>
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                {viewMode === "day"
+                  ? formatDisplayDate(toDateKey(currentDate))
+                  : `${formatDisplayDate(toDateKey(weekDays[0]))} - ${formatDisplayDate(
+                      toDateKey(weekDays[6])
+                    )}`}
+              </h2>
+              <button
+                onClick={() =>
+                  setCurrentDate(addDays(currentDate, viewMode === "day" ? 1 : 7))
+                }
+                className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+              >
+                Next
+              </button>
+            </div>
 
-                  {Array.from({ length: daysInMonth }).map((_, idx) => {
-                    const date = idx + 1;
-                    const dateKey = toDateKey(new Date(year, month, date));
+            <div className="grid grid-cols-[80px_1fr]">
+              <div className="border-r border-zinc-200 dark:border-zinc-800">
+                {dayHours.map((hour) => (
+                  <div
+                    key={hour}
+                    className="h-16 border-b border-zinc-200/60 dark:border-zinc-800/60 text-xs text-zinc-500 flex items-start justify-center pt-2"
+                  >
+                    {hour}:00
+                  </div>
+                ))}
+              </div>
+
+              <div
+                className={`grid ${
+                  viewMode === "day" ? "grid-cols-1" : "grid-cols-7"
+                } gap-4 p-4`}
+              >
+                {(viewMode === "day" ? [currentDate] : weekDays).map(
+                  (day) => {
+                    const dateKey = toDateKey(day);
                     const dayJobs = jobsByDate.get(dateKey) || [];
-                    const isToday =
-                      new Date().getDate() === date &&
-                      new Date().getMonth() === month &&
-                      new Date().getFullYear() === year;
 
                     return (
-                      <DayDropZone key={dateKey} dateKey={dateKey}>
-                        <div
-                          className={`text-xs font-semibold mb-2 ${
-                            isToday
-                              ? "text-purple-400"
-                              : "text-zinc-600 dark:text-zinc-400"
-                          }`}
-                        >
-                          {date}
+                      <div key={dateKey} className="space-y-2">
+                        <div className="text-xs text-zinc-500 uppercase tracking-wider">
+                          {day.toLocaleDateString("en-US", {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric"
+                          })}
                         </div>
-                        <div className="space-y-1">
-                          {dayJobs.map((job) => (
-                            <JobChip
-                              key={job.id}
-                              job={job}
-                              onSelect={setSelectedJob}
+                        <DayColumn
+                          isActive={dragOverDate === dateKey}
+                          onDragOver={handleDragOver}
+                          onDragEnter={() => setDragOverDate(dateKey)}
+                          onDragLeave={() => setDragOverDate(null)}
+                          onDrop={(event) => handleDrop(dateKey, event)}
+                        >
+                          {dayHours.map((hour) => (
+                            <div
+                              key={`${dateKey}-${hour}`}
+                              className="border-b border-zinc-800/40"
+                              style={{ height: HOUR_HEIGHT }}
                             />
                           ))}
-                        </div>
-                      </DayDropZone>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
+                          {dayJobs.map((job) => {
+                            const start = parseJobDate(job);
+                            const duration = job.hours ? Number(job.hours) : 3;
+                            const minutesFromStart =
+                              (start.getHours() - START_HOUR) * 60 +
+                              start.getMinutes();
+                            const top = (minutesFromStart / 60) * HOUR_HEIGHT;
+                            const height = Math.max(duration * HOUR_HEIGHT, 48);
 
-          {viewMode !== "month" && (
-            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-              <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-                <button
-                  onClick={() =>
-                    setCurrentDate(addDays(currentDate, viewMode === "day" ? -1 : -7))
-                  }
-                  className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                >
-                  Previous
-                </button>
-                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                  {viewMode === "day"
-                    ? formatDisplayDate(toDateKey(currentDate))
-                    : `${formatDisplayDate(toDateKey(weekDays[0]))} - ${formatDisplayDate(
-                        toDateKey(weekDays[6])
-                      )}`}
-                </h2>
-                <button
-                  onClick={() =>
-                    setCurrentDate(addDays(currentDate, viewMode === "day" ? 1 : 7))
-                  }
-                  className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                >
-                  Next
-                </button>
-              </div>
-
-              <div className="grid grid-cols-[80px_1fr]">
-                <div className="border-r border-zinc-200 dark:border-zinc-800">
-                  {dayHours.map((hour) => (
-                    <div
-                      key={hour}
-                      className="h-16 border-b border-zinc-200/60 dark:border-zinc-800/60 text-xs text-zinc-500 flex items-start justify-center pt-2"
-                    >
-                      {hour}:00
-                    </div>
-                  ))}
-                </div>
-
-                <div
-                  className={`grid ${
-                    viewMode === "day" ? "grid-cols-1" : "grid-cols-7"
-                  } gap-4 p-4`}
-                >
-                  {(viewMode === "day" ? [currentDate] : weekDays).map(
-                    (day) => {
-                      const dateKey = toDateKey(day);
-                      const dayJobs = jobsByDate.get(dateKey) || [];
-
-                      return (
-                        <div key={dateKey} className="space-y-2">
-                          <div className="text-xs text-zinc-500 uppercase tracking-wider">
-                            {day.toLocaleDateString("en-US", {
-                              weekday: "short",
-                              month: "short",
-                              day: "numeric"
-                            })}
-                          </div>
-                          <DayColumn dateKey={dateKey}>
-                            {dayHours.map((hour) => (
+                            return (
                               <div
-                                key={`${dateKey}-${hour}`}
-                                className="border-b border-zinc-800/40"
-                                style={{ height: HOUR_HEIGHT }}
-                              />
-                            ))}
-                            {dayJobs.map((job) => {
-                              const start = parseJobDate(job);
-                              const duration = job.hours ? Number(job.hours) : 3;
-                              const minutesFromStart =
-                                (start.getHours() - START_HOUR) * 60 +
-                                start.getMinutes();
-                              const top = (minutesFromStart / 60) * HOUR_HEIGHT;
-                              const height = Math.max(duration * HOUR_HEIGHT, 48);
-
-                              return (
-                                <div
-                                  key={job.id}
-                                  className="absolute left-3 right-3"
-                                  style={{ top, height }}
-                                >
-                                  <JobChip job={job} onSelect={setSelectedJob} />
-                                </div>
-                              );
-                            })}
-                          </DayColumn>
-                        </div>
-                      );
-                    }
-                  )}
-                </div>
+                                key={job.id}
+                                className="absolute left-3 right-3"
+                                style={{ top, height }}
+                              >
+                                <JobChip
+                                  job={job}
+                                  onSelect={setSelectedJob}
+                                  onDragStart={handleDragStart}
+                                  onDragEnd={handleDragEnd}
+                                  isDragging={draggingJobId === job.id}
+                                />
+                              </div>
+                            );
+                          })}
+                        </DayColumn>
+                      </div>
+                    );
+                  }
+                )}
               </div>
             </div>
-          )}
-        </DndContext>
+          </div>
+        )}
 
         {selectedJob && (
           <div className="mt-6 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6">
