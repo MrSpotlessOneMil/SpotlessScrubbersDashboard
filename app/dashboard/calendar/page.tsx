@@ -33,7 +33,7 @@ type Conflict = {
 const START_HOUR = 7;
 const END_HOUR = 19;
 const HOUR_HEIGHT = 56;
-const MIN_SLOT = 5;
+const MIN_SLOT = 15;
 
 function toDateKey(date: Date) {
   const year = date.getFullYear();
@@ -137,6 +137,20 @@ function timeToMinutes(time: string) {
   return hours * 60 + minutes;
 }
 
+function snapMinutes(value: number) {
+  return Math.round(value / MIN_SLOT) * MIN_SLOT;
+}
+
+function snapTimeValue(time: string) {
+  return minutesToTime(snapMinutes(timeToMinutes(time)));
+}
+
+function formatMinutesLabel(totalMinutes: number) {
+  const date = new Date();
+  date.setHours(0, totalMinutes, 0, 0);
+  return formatTime(date);
+}
+
 type PositionedJob = {
   job: Job;
   top: number;
@@ -158,7 +172,7 @@ function layoutDayJobs(dayJobs: Job[]): PositionedJob[] {
       return {
         job,
         start: clampedStart,
-        end: Math.max(clampedEnd, clampedStart + 15)
+        end: Math.max(clampedEnd, clampedStart + MIN_SLOT)
       };
     })
     .sort((a, b) => a.start - b.start);
@@ -249,6 +263,11 @@ function JobChip({
   className?: string;
 }) {
   const team = job.cleaningTeam.length ? job.cleaningTeam.join(", ") : "Unassigned";
+  const priceLabel = job.price
+    ? `$${Number(job.price).toLocaleString("en-US")}`
+    : "";
+  const secondaryText = isDragging ? "text-blue-100/80" : "text-slate-500";
+  const mutedText = isDragging ? "text-blue-100/80" : "text-slate-600";
   return (
     <button
       draggable
@@ -258,15 +277,16 @@ function JobChip({
       className={`w-full text-left text-xs rounded-lg px-2 py-1 transition-all ${className ?? ""} ${
         isDragging
           ? "bg-blue-600 text-white shadow-lg"
-          : "bg-blue-600/15 text-blue-50 hover:bg-blue-600/30"
+          : "bg-white text-slate-900 border border-slate-200 hover:border-blue-400"
       }`}
     >
       <div className="font-semibold truncate">{job.client}</div>
-      <div className="text-[10px] uppercase tracking-wide text-blue-100/70">
-        {formatTimeRange(job)}
+      <div className={`flex items-center justify-between text-[10px] ${secondaryText}`}>
+        <span>{formatTimeRange(job)}</span>
+        <span className={`text-right tabular-nums ${secondaryText}`}>{priceLabel}</span>
       </div>
-      <div className="truncate opacity-80">{job.title}</div>
-      <div className="text-[10px] text-blue-100/70">Team: {team}</div>
+      <div className={`truncate ${mutedText}`}>{job.title}</div>
+      <div className={`text-[10px] ${secondaryText}`}>Team: {team}</div>
     </button>
   );
 }
@@ -292,8 +312,8 @@ function DayDropZone({
       onDragLeave={onDragLeave}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      className={`rounded-lg border border-zinc-800/40 p-2 min-h-[120px] transition-colors ${
-        isActive ? "bg-blue-500/10 border-blue-500/60" : "bg-zinc-950/40"
+      className={`border border-slate-200 p-2 min-h-[120px] transition-colors ${
+        isActive ? "bg-blue-50 border-blue-400" : "bg-white"
       }`}
     >
       {children}
@@ -322,8 +342,8 @@ function DayColumn({
       onDragLeave={onDragLeave}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      className={`relative rounded-xl border border-zinc-800/40 bg-zinc-950/40 ${
-        isActive ? "ring-1 ring-blue-400/60" : ""
+      className={`relative border border-slate-200 bg-white ${
+        isActive ? "ring-1 ring-blue-400" : ""
       }`}
       style={{ height: HOUR_HEIGHT * (END_HOUR - START_HOUR + 1) }}
     >
@@ -385,7 +405,7 @@ export default function CalendarPage() {
     const initialCrew = pendingMove.job.cleaningTeam.length || 1;
 
     setTargetDate(pendingMove.targetDate);
-    setTargetTime(pendingMove.targetTime);
+    setTargetTime(snapTimeValue(pendingMove.targetTime));
     setTeamInput(pendingMove.job.cleaningTeam.join(", "));
     setCrewSize(initialCrew);
     setDurationHours(initialDuration);
@@ -603,7 +623,7 @@ export default function CalendarPage() {
 
   const openReschedule = (job: Job) => {
     const jobStart = parseJobDate(job);
-    const minutes = jobStart.getHours() * 60 + jobStart.getMinutes();
+    const minutes = snapMinutes(jobStart.getHours() * 60 + jobStart.getMinutes());
     setPendingMove({
       job,
       targetDate: toDateKey(jobStart),
@@ -714,16 +734,16 @@ export default function CalendarPage() {
     }
 
     const currentDateKey = toDateKey(parseJobDate(job));
-    const existingTime = minutesToTime(
-      Math.round(parseJobDate(job).getHours() * 60 + parseJobDate(job).getMinutes())
-    );
+    const existingMinutes =
+      Math.round(parseJobDate(job).getHours() * 60 + parseJobDate(job).getMinutes());
+    const snappedExistingMinutes = snapMinutes(existingMinutes);
 
     const dropMinutes =
       dragOverMinutes !== null
-        ? START_HOUR * 60 + dragOverMinutes
-        : timeToMinutes(existingTime);
+        ? snapMinutes(START_HOUR * 60 + dragOverMinutes)
+        : snappedExistingMinutes;
 
-    if (currentDateKey === dateKey && dropMinutes === timeToMinutes(existingTime)) {
+    if (currentDateKey === dateKey && dropMinutes === snappedExistingMinutes) {
       setSaveError("Drop cancelled: same time selected.");
       setDraggingJobId(null);
       setDragOverDate(null);
@@ -832,10 +852,11 @@ export default function CalendarPage() {
     const rect = event.currentTarget.getBoundingClientRect();
     const offsetY = clamp(event.clientY - rect.top, 0, rect.height);
     const totalMinutes = (END_HOUR - START_HOUR + 1) * 60;
+    const rawMinutes = (offsetY / rect.height) * totalMinutes;
     const minutes = clamp(
-      Math.round((offsetY / rect.height) * totalMinutes),
+      snapMinutes(rawMinutes),
       0,
-      totalMinutes - 1
+      totalMinutes - MIN_SLOT
     );
     setDragOverDate(dateKey);
     setDragOverMinutes(minutes);
@@ -995,6 +1016,21 @@ export default function CalendarPage() {
     (_, i) => START_HOUR + i
   );
 
+  const timeOptions = useMemo(() => {
+    const options: { value: string; label: string }[] = [];
+    for (
+      let minutes = START_HOUR * 60;
+      minutes <= END_HOUR * 60;
+      minutes += MIN_SLOT
+    ) {
+      options.push({
+        value: minutesToTime(minutes),
+        label: formatMinutesLabel(minutes)
+      });
+    }
+    return options;
+  }, []);
+
   const panelJob = pendingMove?.job ?? selectedJob;
   const panelOpen = Boolean(panelJob);
   const panelTeam =
@@ -1017,7 +1053,7 @@ export default function CalendarPage() {
     : null;
 
   return (
-    <div className="p-8">
+    <div className="min-h-screen bg-slate-50 p-8 text-slate-900">
       <div
         className="max-w-7xl mx-auto space-y-6"
         style={{
@@ -1026,8 +1062,8 @@ export default function CalendarPage() {
       >
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-semibold text-zinc-100">Calendar</h1>
-            <p className="text-sm text-zinc-500">
+            <h1 className="text-3xl font-semibold text-slate-900">Calendar</h1>
+            <p className="text-sm text-slate-500">
               Drag jobs to reschedule with precise time control.
             </p>
           </div>
@@ -1037,7 +1073,7 @@ export default function CalendarPage() {
                 MOCK DATA
               </Badge>
             )}
-            <div className="flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-950 p-1 text-xs">
+            <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white p-1 text-xs">
               {["month", "week", "day"].map((mode) => (
                 <button
                   key={mode}
@@ -1045,7 +1081,7 @@ export default function CalendarPage() {
                   className={`px-3 py-1 rounded-full uppercase tracking-wider transition-colors ${
                     viewMode === mode
                       ? "bg-blue-600 text-white"
-                      : "text-zinc-500 hover:text-zinc-100"
+                      : "text-slate-500 hover:text-slate-900"
                   }`}
                 >
                   {mode}
@@ -1055,24 +1091,24 @@ export default function CalendarPage() {
           </div>
         </div>
         {saveError && (
-          <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+          <div className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {saveError}
           </div>
         )}
 
         {viewMode === "month" && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 overflow-hidden">
-            <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+          <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
               <button
                 onClick={() => setCurrentDate(new Date(year, month - 1, 1))}
-                className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-zinc-100 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-900 rounded-lg transition-colors"
               >
                 Previous
               </button>
-              <h2 className="text-lg font-semibold text-zinc-100">{monthName}</h2>
+              <h2 className="text-lg font-semibold text-slate-900">{monthName}</h2>
               <button
                 onClick={() => setCurrentDate(new Date(year, month + 1, 1))}
-                className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-zinc-100 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-900 rounded-lg transition-colors"
               >
                 Next
               </button>
@@ -1083,16 +1119,19 @@ export default function CalendarPage() {
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
                   <div
                     key={day}
-                    className="text-center text-xs font-semibold text-zinc-500 py-2"
+                    className="text-left text-xs font-semibold text-slate-600 py-2 pl-2"
                   >
                     {day}
                   </div>
                 ))}
               </div>
 
-              <div className="grid grid-cols-7 gap-2">
+              <div className="grid grid-cols-7 gap-0">
                 {Array.from({ length: startingDayOfWeek }).map((_, idx) => (
-                  <div key={`empty-${idx}`} className="min-h-[120px]" />
+                  <div
+                    key={`empty-${idx}`}
+                    className="min-h-[120px] border border-slate-200 bg-white"
+                  />
                 ))}
 
                 {Array.from({ length: daysInMonth }).map((_, idx) => {
@@ -1121,7 +1160,7 @@ export default function CalendarPage() {
                     >
                       <div
                         className={`text-xs font-semibold mb-2 ${
-                          isToday ? "text-blue-300" : "text-zinc-500"
+                          isToday ? "text-blue-600" : "text-slate-500"
                         }`}
                       >
                         {date}
@@ -1147,17 +1186,17 @@ export default function CalendarPage() {
         )}
 
         {viewMode !== "month" && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 overflow-hidden">
-            <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+          <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
               <button
                 onClick={() =>
                   setCurrentDate(addDays(currentDate, viewMode === "day" ? -1 : -7))
                 }
-                className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-zinc-100 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-900 rounded-lg transition-colors"
               >
                 Previous
               </button>
-              <h2 className="text-lg font-semibold text-zinc-100">
+              <h2 className="text-lg font-semibold text-slate-900">
                 {viewMode === "day"
                   ? formatDisplayDate(toDateKey(currentDate))
                   : `${formatDisplayDate(toDateKey(weekDays[0]))} - ${formatDisplayDate(
@@ -1168,27 +1207,25 @@ export default function CalendarPage() {
                 onClick={() =>
                   setCurrentDate(addDays(currentDate, viewMode === "day" ? 1 : 7))
                 }
-                className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-zinc-100 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-900 rounded-lg transition-colors"
               >
                 Next
               </button>
             </div>
 
             <div className="grid grid-cols-[80px_1fr]">
-              <div className="border-r border-zinc-800">
-                {dayHours.map((hour) => {
+              <div className="border-r border-slate-200">
+                {dayHours.map((hour, index) => {
                   const time = new Date();
                   time.setHours(hour, 0, 0, 0);
-                  const formatted = time.toLocaleTimeString("en-US", {
-                    hour: "numeric",
-                    minute: "2-digit"
-                  });
                   return (
                     <div
                       key={hour}
-                      className="h-14 border-b border-zinc-800/60 text-xs text-zinc-500 flex items-start justify-center pt-2"
+                      className={`h-14 border-b border-slate-200 text-xs text-slate-500 flex items-start justify-start pl-2 pt-2 ${
+                        index % 2 === 0 ? "bg-slate-50" : "bg-white"
+                      }`}
                     >
-                      {formatted}
+                      {formatTime(time)}
                     </div>
                   );
                 })}
@@ -1197,7 +1234,7 @@ export default function CalendarPage() {
               <div
                 className={`grid ${
                   viewMode === "day" ? "grid-cols-1" : "grid-cols-7"
-                } gap-4 p-4`}
+                } gap-0`}
               >
                 {(viewMode === "day" ? [currentDate] : weekDays).map((day) => {
                   const dateKey = toDateKey(day);
@@ -1205,7 +1242,7 @@ export default function CalendarPage() {
 
                   return (
                     <div key={dateKey} className="space-y-2">
-                      <div className="text-xs text-zinc-500 uppercase tracking-wider">
+                      <div className="text-xs text-slate-600 uppercase tracking-wider pl-2">
                         {day.toLocaleDateString("en-US", {
                           weekday: "short",
                           month: "short",
@@ -1222,10 +1259,12 @@ export default function CalendarPage() {
                         }}
                         onDrop={(event) => handleDrop(dateKey, event)}
                       >
-                        {dayHours.map((hour) => (
+                        {dayHours.map((hour, index) => (
                           <div
                             key={`${dateKey}-${hour}`}
-                            className="border-b border-zinc-800/40"
+                            className={`border-b border-slate-200 ${
+                              index % 2 === 0 ? "bg-slate-50" : "bg-white"
+                            }`}
                             style={{ height: HOUR_HEIGHT }}
                           />
                         ))}
@@ -1234,12 +1273,12 @@ export default function CalendarPage() {
                             className="absolute left-2 right-2 z-20"
                             style={{ top: (dragOverMinutes / 60) * HOUR_HEIGHT }}
                           >
-                            <div className="flex items-center gap-2 text-[10px] text-blue-200">
-                              <div className="h-px flex-1 bg-blue-400/60" />
-                              <span className="rounded-full bg-blue-600 px-2 py-0.5 text-white">
-                                {minutesToTime(START_HOUR * 60 + dragOverMinutes)}
+                            <div className="flex items-center gap-2 text-[10px] text-blue-600">
+                              <div className="h-px flex-1 bg-blue-300" />
+                              <span className="rounded-full bg-white px-2 py-0.5 text-blue-600 border border-blue-300">
+                                {formatMinutesLabel(START_HOUR * 60 + dragOverMinutes)}
                               </span>
-                              <div className="h-px flex-1 bg-blue-400/60" />
+                              <div className="h-px flex-1 bg-blue-300" />
                             </div>
                           </div>
                         )}
@@ -1282,60 +1321,60 @@ export default function CalendarPage() {
 
       {panelOpen && panelJob && (
         <aside
-          className="fixed top-0 right-0 z-40 h-full border-l border-zinc-800 bg-zinc-950/95 backdrop-blur"
+          className="fixed top-0 right-0 z-40 h-full border-l border-slate-200 bg-white"
           style={{ width: panelWidth }}
         >
           <div
-            className="absolute left-0 top-0 h-full w-1 cursor-col-resize bg-zinc-800/60 hover:bg-blue-500/60 transition-colors"
+            className="absolute left-0 top-0 h-full w-1 cursor-col-resize bg-slate-200 hover:bg-blue-300 transition-colors"
             onMouseDown={() => setResizing(true)}
           />
-          <div className="flex items-start justify-between border-b border-zinc-800 p-4">
+          <div className="flex items-start justify-between border-b border-slate-200 p-4">
             <div>
-              <div className="text-[10px] uppercase tracking-widest text-zinc-500">
+              <div className="text-[10px] uppercase tracking-widest text-slate-500">
                 Job Profile
               </div>
-              <div className="text-lg font-semibold text-zinc-100">
+              <div className="text-lg font-semibold text-slate-900">
                 {panelJob.client}
               </div>
-              <div className="text-xs text-zinc-500">{panelJob.title}</div>
+              <div className="text-xs text-slate-500">{panelJob.title}</div>
             </div>
             <button
               onClick={closePanel}
-              className="rounded-lg border border-zinc-800 px-3 py-1 text-xs text-zinc-400 hover:text-zinc-100 hover:border-zinc-600 transition-colors"
+              className="rounded-lg border border-slate-200 px-3 py-1 text-xs text-slate-500 hover:text-slate-900 hover:border-slate-400 transition-colors"
             >
               Close
             </button>
           </div>
 
           <div className="h-[calc(100%-64px)] overflow-y-auto p-4 space-y-6">
-            <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
+            <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase tracking-widest text-zinc-500">
+                <span className="text-[10px] uppercase tracking-widest text-slate-500">
                   Schedule
                 </span>
-                <span className="text-[10px] uppercase tracking-widest text-zinc-400">
+                <span className="text-[10px] uppercase tracking-widest text-slate-500">
                   {panelJob.status}
                 </span>
               </div>
-              <div className="text-sm text-zinc-100">
+              <div className="text-sm text-slate-900">
                 {panelStart
                   ? formatDisplayDate(toDateKey(panelStart))
                   : "No date set"}
               </div>
-              <div className="text-xs text-zinc-500">
+              <div className="text-xs text-slate-500">
                 {panelStart && panelEnd
                   ? `${formatTime(panelStart)} - ${formatTime(panelEnd)}`
                   : "Time not set"}
               </div>
-              <div className="text-xs text-zinc-500">Team: {panelTeam}</div>
+              <div className="text-xs text-slate-500">Team: {panelTeam}</div>
               <div className="flex flex-wrap gap-2 text-xs">
                 <span
                   className={`rounded-full px-2 py-0.5 ${
                     panelJob.cleaningTeam && panelJob.cleaningTeam.length > 0
-                      ? "bg-blue-500/20 text-blue-100"
+                      ? "bg-blue-50 text-blue-700"
                       : panelJob.email
-                      ? "bg-emerald-500/20 text-emerald-100"
-                      : "bg-zinc-800 text-zinc-400"
+                      ? "bg-slate-100 text-slate-700"
+                      : "bg-slate-100 text-slate-600"
                   }`}
                 >
                   {panelJob.cleaningTeam && panelJob.cleaningTeam.length > 0
@@ -1347,16 +1386,16 @@ export default function CalendarPage() {
                 <span
                   className={`rounded-full px-2 py-0.5 ${
                     panelJob.paid
-                      ? "bg-blue-500/20 text-blue-100"
-                      : "bg-zinc-800 text-zinc-400"
+                      ? "bg-blue-50 text-blue-700"
+                      : "bg-slate-100 text-slate-600"
                   }`}
                 >
                   {panelJob.paid ? "Paid" : "Unpaid"}
                 </span>
-                <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-zinc-400">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
                   {panelJob.hours ? `${panelJob.hours} hrs` : "Hours TBD"}
                 </span>
-                <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-zinc-400">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
                   ${panelJob.price || 0}
                 </span>
               </div>
@@ -1365,19 +1404,19 @@ export default function CalendarPage() {
             {!pendingMove && (
               <button
                 onClick={() => openReschedule(panelJob)}
-                className="w-full rounded-xl border border-blue-500/40 bg-blue-500/10 px-4 py-3 text-sm font-semibold text-blue-100 hover:bg-blue-500/20 transition-colors"
+                className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
               >
                 Reschedule Job
               </button>
             )}
 
             {pendingMove && (
-              <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 space-y-4">
+              <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase tracking-widest text-zinc-500">
+                  <span className="text-[10px] uppercase tracking-widest text-slate-500">
                     Reschedule
                   </span>
-                  <span className="text-xs text-zinc-400">
+                  <span className="text-xs text-slate-500">
                     {previewStart && previewEnd
                       ? `${formatTime(previewStart)} - ${formatTime(previewEnd)}`
                       : ""}
@@ -1385,30 +1424,36 @@ export default function CalendarPage() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <label className="text-xs text-zinc-500">
+                  <label className="text-xs text-slate-600">
                     Date
                     <input
                       type="date"
                       value={targetDate}
                       onChange={(event) => setTargetDate(event.target.value)}
-                      className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                     />
                   </label>
-                  <label className="text-xs text-zinc-500">
+                  <label className="text-xs text-slate-600">
                     Start time
-                    <input
+                    <select
                       id="time-input"
-                      type="time"
-                      step={MIN_SLOT * 60}
                       value={targetTime}
-                      onChange={(event) => setTargetTime(event.target.value)}
-                      className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-                    />
+                      onChange={(event) =>
+                        setTargetTime(snapTimeValue(event.target.value))
+                      }
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    >
+                      {timeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <label className="text-xs text-zinc-500">
+                  <label className="text-xs text-slate-600">
                     Crew size
                     <input
                       type="number"
@@ -1417,10 +1462,10 @@ export default function CalendarPage() {
                       onChange={(event) =>
                         handleCrewSizeChange(Number(event.target.value || 1))
                       }
-                      className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                     />
                   </label>
-                  <label className="text-xs text-zinc-500">
+                  <label className="text-xs text-slate-600">
                     Duration (hrs)
                     <input
                       type="number"
@@ -1430,12 +1475,12 @@ export default function CalendarPage() {
                       onChange={(event) =>
                         handleDurationChange(Number(event.target.value || 0))
                       }
-                      className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                     />
                   </label>
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-zinc-500">
+                <div className="flex items-center justify-between text-xs text-slate-500">
                   <span>Labor hours: {laborHours.toFixed(1)}</span>
                   <label className="flex items-center gap-2">
                     <input
@@ -1448,7 +1493,7 @@ export default function CalendarPage() {
                   </label>
                 </div>
 
-                <label className="text-xs text-zinc-500">
+                <label className="text-xs text-slate-600">
                   Assigned team
                   <input
                     id="team-input"
@@ -1456,12 +1501,12 @@ export default function CalendarPage() {
                     value={teamInput}
                     onChange={(event) => handleTeamInputChange(event.target.value)}
                     placeholder="Names separated by commas"
-                    className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                   />
                 </label>
 
                 {conflicts.length > 0 && (
-                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100 space-y-2">
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="uppercase tracking-widest">
                         Conflicts
@@ -1470,21 +1515,21 @@ export default function CalendarPage() {
                         <button
                           type="button"
                           onClick={() => focusInput("time-input")}
-                          className="rounded-full border border-amber-500/40 px-2 py-1 hover:bg-amber-500/20"
+                          className="rounded-full border border-amber-300 px-2 py-1 hover:bg-amber-100"
                         >
                           Adjust time
                         </button>
                         <button
                           type="button"
                           onClick={() => focusInput("team-input")}
-                          className="rounded-full border border-amber-500/40 px-2 py-1 hover:bg-amber-500/20"
+                          className="rounded-full border border-amber-300 px-2 py-1 hover:bg-amber-100"
                         >
                           Reassign team
                         </button>
                         <button
                           type="button"
                           onClick={() => setNotifyClient(true)}
-                          className="rounded-full border border-amber-500/40 px-2 py-1 hover:bg-amber-500/20"
+                          className="rounded-full border border-amber-300 px-2 py-1 hover:bg-amber-100"
                         >
                           Notify client
                         </button>
@@ -1496,7 +1541,7 @@ export default function CalendarPage() {
                         className="flex items-center justify-between gap-3"
                       >
                         <span>{conflict.reason}</span>
-                        <span className="text-amber-200/70">
+                        <span className="text-amber-700">
                           {formatTimeRange(conflict.job)}
                         </span>
                       </div>
@@ -1505,8 +1550,8 @@ export default function CalendarPage() {
                 )}
 
                 {downstreamJobs.length > 0 && shiftMinutes > 0 && (
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-950/70 p-3 space-y-2">
-                    <label className="flex items-center gap-2 text-xs text-zinc-400">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+                    <label className="flex items-center gap-2 text-xs text-slate-500">
                       <input
                         type="checkbox"
                         checked={shiftDownstream}
@@ -1518,7 +1563,7 @@ export default function CalendarPage() {
 
                     {shiftDownstream && (
                       <>
-                        <label className="flex items-center gap-2 text-xs text-zinc-400">
+                        <label className="flex items-center gap-2 text-xs text-slate-500">
                           <input
                             type="checkbox"
                             checked={notifyAffected}
@@ -1530,14 +1575,14 @@ export default function CalendarPage() {
                           Notify affected clients
                         </label>
 
-                        <div className="space-y-1 text-xs text-zinc-500">
+                        <div className="space-y-1 text-xs text-slate-500">
                           {shiftedDownstream.map((shift) => (
                             <div
                               key={shift.job.id}
                               className="flex items-center justify-between"
                             >
                               <span className="truncate">{shift.job.client}</span>
-                              <span className="text-zinc-400">
+                              <span className="text-slate-500">
                                 {shift.newTime}
                               </span>
                             </div>
@@ -1548,22 +1593,22 @@ export default function CalendarPage() {
                   </div>
                 )}
 
-                <label className="text-xs text-zinc-500">
+                <label className="text-xs text-slate-600">
                   Reschedule reason
                   <textarea
                     value={rescheduleReason}
                     onChange={(event) => setRescheduleReason(event.target.value)}
                     placeholder="Add a quick note for internal tracking"
-                    className="mt-1 min-h-[70px] w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    className="mt-1 min-h-[70px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                   />
                 </label>
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-widest text-zinc-500">
+                    <span className="text-[10px] uppercase tracking-widest text-slate-500">
                       Client Notification
                     </span>
-                    <label className="flex items-center gap-2 text-xs text-zinc-400">
+                    <label className="flex items-center gap-2 text-xs text-slate-500">
                       <input
                         type="checkbox"
                         checked={notifyClient}
@@ -1581,7 +1626,7 @@ export default function CalendarPage() {
                       className={`rounded-full px-3 py-1 ${
                         notifyMode === "ai"
                           ? "bg-blue-500 text-white"
-                          : "border border-zinc-800 text-zinc-400"
+                          : "border border-slate-200 text-slate-600"
                       }`}
                     >
                       AI draft
@@ -1592,7 +1637,7 @@ export default function CalendarPage() {
                       className={`rounded-full px-3 py-1 ${
                         notifyMode === "manual"
                           ? "bg-blue-500 text-white"
-                          : "border border-zinc-800 text-zinc-400"
+                          : "border border-slate-200 text-slate-600"
                       }`}
                     >
                       Manual
@@ -1603,12 +1648,12 @@ export default function CalendarPage() {
                     value={notifyMessage}
                     onChange={(event) => setNotifyMessage(event.target.value)}
                     disabled={!notifyClient}
-                    className="min-h-[110px] w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:opacity-50"
+                    className="min-h-[110px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:opacity-50"
                   />
                 </div>
 
                 {saveError && (
-                  <div className="text-xs text-rose-300">{saveError}</div>
+                  <div className="text-xs text-rose-600">{saveError}</div>
                 )}
 
                 <div className="flex items-center gap-3">
@@ -1622,7 +1667,7 @@ export default function CalendarPage() {
                   <button
                     type="button"
                     onClick={() => setPendingMove(null)}
-                    className="rounded-xl border border-zinc-800 px-4 py-3 text-sm text-zinc-400 hover:text-zinc-100 hover:border-zinc-600 transition-colors"
+                    className="rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-600 hover:text-slate-900 hover:border-slate-400 transition-colors"
                   >
                     Cancel
                   </button>
@@ -1635,15 +1680,15 @@ export default function CalendarPage() {
 
       {/* Cascade Preview Modal */}
       {showCascadeModal && cascadePreview && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-8">
-          <div className="glass-card rounded-3xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto space-y-6">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto space-y-6 shadow-xl">
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="text-2xl font-semibold text-zinc-200">
+                <h2 className="text-2xl font-semibold text-slate-900">
                   Schedule Cascade Detected
                 </h2>
-                <p className="text-sm text-zinc-500 mt-2">
-                  This change will affect {cascadePreview.changes.length - 1} other job{cascadePreview.changes.length > 2 ? 's' : ''} on the same day
+                <p className="text-sm text-slate-600 mt-2">
+                  This change will affect {cascadePreview.changes.length - 1} other job{cascadePreview.changes.length > 2 ? "s" : ""} on the same day
                 </p>
               </div>
               <button
@@ -1651,49 +1696,55 @@ export default function CalendarPage() {
                   setShowCascadeModal(false);
                   setCascadePreview(null);
                 }}
-                className="text-zinc-600 hover:text-zinc-400 text-2xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-zinc-800/50"
+                className="text-slate-400 hover:text-slate-700 text-xl w-9 h-9 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
               >
-                ×
+                X
               </button>
             </div>
 
             {/* Summary */}
-            <div className="rounded-xl bg-blue-500/10 border border-blue-500/40 p-4">
-              <h3 className="text-sm font-semibold text-blue-200 mb-2">What Changed</h3>
-              <p className="text-sm text-zinc-300 whitespace-pre-line">{cascadePreview.summary}</p>
+            <div className="rounded-xl bg-blue-50 border border-blue-200 p-4">
+              <h3 className="text-sm font-semibold text-blue-700 mb-2">
+                What Changed
+              </h3>
+              <p className="text-sm text-slate-700 whitespace-pre-line">
+                {cascadePreview.summary}
+              </p>
             </div>
 
             {/* Conflicts */}
             {cascadePreview.conflicts.length > 0 && (
               <div className="space-y-3">
-                <h3 className="text-sm font-medium text-amber-400 uppercase tracking-wider">
-                  ⚠️ {cascadePreview.conflicts.length} Conflict{cascadePreview.conflicts.length > 1 ? 's' : ''} Detected
+                <h3 className="text-sm font-medium text-amber-700 uppercase tracking-wider">
+                  Conflicts ({cascadePreview.conflicts.length})
                 </h3>
                 {cascadePreview.conflicts.map((conflict, idx) => (
                   <div
                     key={idx}
-                    className="rounded-xl p-4 bg-amber-500/10 border border-amber-500/40"
+                    className="rounded-xl p-4 bg-amber-50 border border-amber-200"
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="font-semibold text-amber-100">
+                      <span className="font-semibold text-amber-900">
                         {conflict.job.client}
                       </span>
-                      <span className="text-xs px-2 py-1 rounded-full bg-amber-600/30 text-amber-200">
+                      <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800">
                         {conflict.severity}
                       </span>
                     </div>
-                    <div className="text-sm text-amber-200/90">{conflict.reason}</div>
+                    <div className="text-sm text-amber-800">
+                      {conflict.reason}
+                    </div>
                   </div>
                 ))}
-                <div className="text-xs text-amber-300 bg-amber-500/5 rounded-lg p-3">
-                  💡 These conflicts must be resolved before proceeding. Consider choosing a different time or manually adjusting the conflicting jobs.
+                <div className="text-xs text-amber-800 bg-amber-50 rounded-lg p-3 border border-amber-200">
+                  These conflicts must be resolved before proceeding. Consider choosing a different time or manually adjusting the conflicting jobs.
                 </div>
               </div>
             )}
 
             {/* Affected Jobs */}
             <div className="space-y-3">
-              <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
+              <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">
                 Affected Appointments ({cascadePreview.changes.length})
               </h3>
               <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -1702,40 +1753,48 @@ export default function CalendarPage() {
                     key={change.job.id}
                     className={`rounded-xl p-4 ${
                       idx === 0
-                        ? 'bg-blue-500/10 border border-blue-500/40'
-                        : 'bg-zinc-800/30 border border-zinc-700/40'
+                        ? "bg-blue-50 border border-blue-200"
+                        : "bg-white border border-slate-200"
                     }`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-zinc-200">
+                          <span className="font-semibold text-slate-900">
                             {change.job.client}
                           </span>
                           {idx === 0 && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-600/40 text-blue-200">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-600 text-white">
                               PRIMARY
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-zinc-500">{change.job.title}</div>
+                        <div className="text-xs text-slate-500">
+                          {change.job.title}
+                        </div>
                         {change.deltaMinutes !== 0 && (
-                          <div className="text-sm text-zinc-300">
-                            {formatTime(change.originalStart)} → {formatTime(change.newStart)}
-                            <span className={`ml-2 text-xs ${change.deltaMinutes > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                              ({change.deltaMinutes > 0 ? '+' : ''}{change.deltaMinutes} min)
+                          <div className="text-sm text-slate-700">
+                            {formatTime(change.originalStart)} to {formatTime(change.newStart)}
+                            <span
+                              className={`ml-2 text-xs ${
+                                change.deltaMinutes > 0
+                                  ? "text-amber-600"
+                                  : "text-blue-600"
+                              }`}
+                            >
+                              ({change.deltaMinutes > 0 ? "+" : ""}{change.deltaMinutes} min)
                             </span>
                           </div>
                         )}
                         {change.originalDuration !== change.newDuration && (
-                          <div className="text-xs text-zinc-400">
-                            Duration: {change.originalDuration}h → {change.newDuration}h
+                          <div className="text-xs text-slate-500">
+                            Duration: {change.originalDuration}h to {change.newDuration}h
                           </div>
                         )}
                       </div>
                     </div>
                     {idx > 0 && (
-                      <div className="mt-2 text-xs text-zinc-500 italic">
+                      <div className="mt-2 text-xs text-slate-500 italic">
                         Reason: {change.reason}
                       </div>
                     )}
@@ -1747,17 +1806,17 @@ export default function CalendarPage() {
             {/* Client Notifications */}
             {cascadePreview.changes.length > 1 && (
               <div className="space-y-3">
-                <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
-                  Client Notifications ({cascadePreview.affectedClients.length} client{cascadePreview.affectedClients.length > 1 ? 's' : ''})
+                <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">
+                  Client Notifications ({cascadePreview.affectedClients.length} client{cascadePreview.affectedClients.length > 1 ? "s" : ""})
                 </h3>
-                <div className="text-xs text-zinc-500 bg-zinc-800/50 rounded-lg p-3">
+                <div className="text-xs text-slate-600 bg-slate-50 rounded-lg p-3 border border-slate-200">
                   After confirming these changes, you'll be able to send automated notifications to all affected clients explaining the schedule adjustment.
                 </div>
               </div>
             )}
 
             {/* Actions */}
-            <div className="space-y-3 pt-4 border-t border-zinc-700">
+            <div className="space-y-3 pt-4 border-t border-slate-200">
               {cascadePreview.conflicts.length > 0 ? (
                 <div className="flex items-center gap-3">
                   <button
@@ -1765,15 +1824,15 @@ export default function CalendarPage() {
                       setShowCascadeModal(false);
                       setCascadePreview(null);
                     }}
-                    className="flex-1 rounded-xl bg-zinc-800 px-4 py-3 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 transition-colors"
+                    className="flex-1 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 transition-colors"
                   >
                     Cancel & Choose Different Time
                   </button>
                 </div>
               ) : (
                 <>
-                  <div className="text-xs text-zinc-500 px-2">
-                    ✓ No conflicts detected. You can proceed with these automatic adjustments.
+                  <div className="text-xs text-slate-600 px-2">
+                    No conflicts detected. You can proceed with these automatic adjustments.
                   </div>
                   <div className="flex items-center gap-3">
                     <button
@@ -1781,7 +1840,7 @@ export default function CalendarPage() {
                         setShowCascadeModal(false);
                         setCascadePreview(null);
                       }}
-                      className="flex-1 rounded-xl bg-zinc-800 px-4 py-3 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 transition-colors"
+                      className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:text-slate-900 hover:border-slate-400 transition-colors"
                     >
                       Cancel
                     </button>
@@ -1819,14 +1878,14 @@ export default function CalendarPage() {
       )}
 
       {showConflictModal && conflictDetails && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-8">
-          <div className="glass-card rounded-3xl p-8 max-w-2xl w-full space-y-6">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 max-w-2xl w-full space-y-6 shadow-xl">
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="text-2xl font-semibold text-zinc-200">
+                <h2 className="text-2xl font-semibold text-slate-900">
                   Scheduling Conflict Detected
                 </h2>
-                <p className="text-sm text-zinc-500 mt-2">
+                <p className="text-sm text-slate-600 mt-2">
                   The selected time conflicts with existing appointments
                 </p>
               </div>
@@ -1835,35 +1894,35 @@ export default function CalendarPage() {
                   setShowConflictModal(false);
                   setConflictDetails(null);
                 }}
-                className="text-zinc-600 hover:text-zinc-400 text-2xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-zinc-800/50"
+                className="text-slate-400 hover:text-slate-700 text-xl w-9 h-9 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
               >
-                ×
+                X
               </button>
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
+              <h3 className="text-sm font-medium text-slate-500 uppercase tracking-wider">
                 Conflicts ({conflictDetails.conflicts.length})
               </h3>
               <div className="space-y-3">
                 {conflictDetails.conflicts.map((conflict) => (
                   <div
                     key={conflict.job.id}
-                    className="rounded-xl p-4 bg-amber-500/10 border border-amber-500/40"
+                    className="rounded-xl p-4 bg-amber-50 border border-amber-200"
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="font-semibold text-amber-100">
+                      <span className="font-semibold text-amber-900">
                         {conflict.job.client}
                       </span>
-                      <span className="text-xs text-amber-200">
+                      <span className="text-xs text-amber-800">
                         {formatTimeRange(conflict.job)}
                       </span>
                     </div>
-                    <div className="text-sm text-amber-200/80">
+                    <div className="text-sm text-amber-800">
                       {conflict.reason}
                     </div>
-                    <div className="text-xs text-amber-200/60 mt-1">
-                      {conflict.job.title} • Team: {conflict.job.cleaningTeam.join(", ")}
+                    <div className="text-xs text-amber-700 mt-1">
+                      {conflict.job.title} - Team: {conflict.job.cleaningTeam.join(", ")}
                     </div>
                   </div>
                 ))}
@@ -1871,8 +1930,8 @@ export default function CalendarPage() {
             </div>
 
             <div className="space-y-3 pt-4">
-              <div className="text-xs text-zinc-500 px-2">
-                ⚠️ Scheduling this job will create conflicts with the appointments shown above. You can either choose a different time or override the conflict.
+              <div className="text-xs text-slate-600 px-2">
+                Scheduling this job will create conflicts with the appointments shown above. You can either choose a different time or override the conflict.
               </div>
               <div className="flex items-center gap-3">
                 <button
@@ -1880,7 +1939,7 @@ export default function CalendarPage() {
                     setShowConflictModal(false);
                     setConflictDetails(null);
                   }}
-                  className="flex-1 rounded-xl bg-zinc-800 px-4 py-3 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 transition-colors"
+                  className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:text-slate-900 hover:border-slate-400 transition-colors"
                 >
                   Cancel
                 </button>
