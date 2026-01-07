@@ -63,7 +63,15 @@ export interface DashboardData {
 
 async function fetchGoogleSheetsData(): Promise<DashboardData | null> {
   const spreadsheetId = process.env.SPREADSHEET_ID;
-  if (!spreadsheetId) return null;
+  if (!spreadsheetId) {
+    console.log('❌ No SPREADSHEET_ID found in environment variables');
+    return null;
+  }
+
+  console.log('🔍 Attempting to fetch Google Sheets data...');
+  console.log('📋 Spreadsheet ID:', spreadsheetId);
+  console.log('📧 Service Account:', process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL);
+  console.log('🔑 Private Key exists:', !!process.env.GOOGLE_PRIVATE_KEY);
 
   try {
     const { google } = await import('googleapis');
@@ -78,18 +86,26 @@ async function fetchGoogleSheetsData(): Promise<DashboardData | null> {
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
+    console.log('✅ Google Sheets API client initialized');
 
     // Fetch Jobs sheet
+    console.log('📥 Fetching Jobs sheet data...');
     const jobsResponse = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range: 'Jobs!A:Z',
     });
 
     const jobsRows = jobsResponse.data.values || [];
-    if (jobsRows.length === 0) return null;
+    console.log(`✅ Received ${jobsRows.length} rows from Jobs sheet`);
+
+    if (jobsRows.length === 0) {
+      console.log('❌ Jobs sheet is empty');
+      return null;
+    }
 
     const jobsHeaders = jobsRows[0] || [];
     const jobsData = jobsRows.slice(1);
+    console.log('📊 Headers:', jobsHeaders.join(', '));
 
     // Helper to get column index safely
     const getCol = (headers: string[], name: string): number => {
@@ -232,8 +248,11 @@ async function fetchGoogleSheetsData(): Promise<DashboardData | null> {
       profiles,
       isLiveData: true,
     };
-  } catch (error) {
-    console.error('Error fetching Google Sheets data:', error);
+  } catch (error: any) {
+    console.error('❌ Error fetching Google Sheets data:', error);
+    console.error('❌ Error message:', error?.message);
+    console.error('❌ Error code:', error?.code);
+    console.error('❌ Error details:', JSON.stringify(error?.errors || error?.response?.data, null, 2));
     return null;
   }
 }
