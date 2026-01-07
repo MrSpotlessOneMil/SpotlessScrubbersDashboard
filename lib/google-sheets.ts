@@ -88,11 +88,11 @@ async function fetchGoogleSheetsData(): Promise<DashboardData | null> {
     const sheets = google.sheets({ version: 'v4', auth });
     console.log('✅ Google Sheets API client initialized');
 
-    // Fetch Jobs sheet
-    console.log('📥 Fetching Jobs sheet data...');
+    // Fetch Customers sheet (where the actual booking data is)
+    console.log('📥 Fetching Customers sheet data...');
     const jobsResponse = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: 'Jobs!A:Z',
+      range: 'Customers!A:Z',
     });
 
     const jobsRows = jobsResponse.data.values || [];
