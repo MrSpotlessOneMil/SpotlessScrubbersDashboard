@@ -353,7 +353,7 @@ export default function CalendarPage() {
   const [panelWidth, setPanelWidth] = useState(420);
   const [resizing, setResizing] = useState(false);
   const [showConflictModal, setShowConflictModal] = useState(false);
-  const [conflictDetails, setConflictDetails] = useState<{ conflicts: Conflict[]; targetDate: string; targetTime: string } | null>(null);
+  const [conflictDetails, setConflictDetails] = useState<{ conflicts: Conflict[]; targetDate: string; targetTime: string; job: Job } | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -601,6 +601,65 @@ export default function CalendarPage() {
     setSelectedJob(null);
   };
 
+  const handleOverrideConflict = async () => {
+    if (!conflictDetails) return;
+
+    const { job, targetDate, targetTime } = conflictDetails;
+    const updatedDateTime = formatLocalDateTime(
+      new Date(`${targetDate}T${targetTime}:00`)
+    );
+    const originalDate = job.date;
+    const originalScheduledAt = job.scheduledAt;
+
+    setShowConflictModal(false);
+    setConflictDetails(null);
+    setSaveError("");
+
+    // Optimistically update UI
+    setJobs((prev) =>
+      prev.map((item) =>
+        item.id === job.id
+          ? {
+              ...item,
+              date: updatedDateTime,
+              scheduledAt: updatedDateTime
+            }
+          : item
+      )
+    );
+
+    try {
+      const response = await fetch(`/api/jobs/${job.id}/reschedule`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: targetDate,
+          startTime: targetTime,
+          hours: job.hours,
+          cleaningTeam: job.cleaningTeam
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to reschedule job");
+      }
+    } catch (error) {
+      // Revert on error
+      setJobs((prev) =>
+        prev.map((item) =>
+          item.id === job.id
+            ? {
+                ...item,
+                date: originalDate,
+                scheduledAt: originalScheduledAt
+              }
+            : item
+        )
+      );
+      setSaveError("Override failed. Please try again.");
+    }
+  };
+
   const handleDragStart = (event: DragEvent<HTMLButtonElement>, job: Job) => {
     event.dataTransfer.setData("text/plain", job.id);
     event.dataTransfer.effectAllowed = "move";
@@ -671,7 +730,7 @@ export default function CalendarPage() {
       .filter(Boolean) as Conflict[];
 
     if (detectedConflicts.length > 0) {
-      setConflictDetails({ conflicts: detectedConflicts, targetDate: dateKey, targetTime: targetTimeValue });
+      setConflictDetails({ conflicts: detectedConflicts, targetDate: dateKey, targetTime: targetTimeValue, job });
       setShowConflictModal(true);
       setDraggingJobId(null);
       setDragOverDate(null);
@@ -1571,26 +1630,27 @@ export default function CalendarPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 pt-4">
-              <button
-                onClick={() => {
-                  setShowConflictModal(false);
-                  setConflictDetails(null);
-                }}
-                className="flex-1 rounded-xl bg-zinc-800 px-4 py-3 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowConflictModal(false);
-                  setConflictDetails(null);
-                  // Could add logic here to open reschedule panel with the conflicting time
-                }}
-                className="flex-1 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-500 transition-colors"
-              >
-                Choose Different Time
-              </button>
+            <div className="space-y-3 pt-4">
+              <div className="text-xs text-zinc-500 px-2">
+                ⚠️ Scheduling this job will create conflicts with the appointments shown above. You can either choose a different time or override the conflict.
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setShowConflictModal(false);
+                    setConflictDetails(null);
+                  }}
+                  className="flex-1 rounded-xl bg-zinc-800 px-4 py-3 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleOverrideConflict}
+                  className="flex-1 rounded-xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white hover:bg-amber-500 transition-colors"
+                >
+                  Override Conflict
+                </button>
+              </div>
             </div>
           </div>
         </div>
