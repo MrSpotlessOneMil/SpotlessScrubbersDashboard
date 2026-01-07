@@ -61,14 +61,197 @@ export interface DashboardData {
   isLiveData: boolean;
 }
 
+async function fetchGoogleSheetsData(): Promise<DashboardData | null> {
+  const spreadsheetId = process.env.SPREADSHEET_ID;
+  if (!spreadsheetId) return null;
+
+  try {
+    const { google } = await import('googleapis');
+
+    // Initialize Google Sheets API with service account
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Fetch Jobs sheet
+    const jobsResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: 'Jobs!A:Z',
+    });
+
+    const jobsRows = jobsResponse.data.values || [];
+    if (jobsRows.length === 0) return null;
+
+    const jobsHeaders = jobsRows[0] || [];
+    const jobsData = jobsRows.slice(1);
+
+    // Helper to get column index safely
+    const getCol = (headers: string[], name: string): number => {
+      const idx = headers.findIndex(h => h?.toLowerCase().includes(name.toLowerCase()));
+      return idx >= 0 ? idx : -1;
+    };
+
+    // Transform to Job[]
+    const jobs: Job[] = jobsData
+      .filter(row => row && row.length > 0)
+      .map((row, index) => {
+        const titleIdx = getCol(jobsHeaders, 'title');
+        const dateIdx = getCol(jobsHeaders, 'date');
+        const statusIdx = getCol(jobsHeaders, 'status');
+        const clientIdx = getCol(jobsHeaders, 'customer name') >= 0
+          ? getCol(jobsHeaders, 'customer name')
+          : getCol(jobsHeaders, 'client');
+        const teamIdx = getCol(jobsHeaders, 'cleaning team');
+        const bookedIdx = getCol(jobsHeaders, 'booked');
+        const paidIdx = getCol(jobsHeaders, 'paid');
+        const priceIdx = getCol(jobsHeaders, 'price');
+        const phoneIdx = getCol(jobsHeaders, 'phone');
+        const emailIdx = getCol(jobsHeaders, 'email');
+
+        return {
+          id: `gsheet-${index + 1}`,
+          title: (titleIdx >= 0 ? row[titleIdx] : '') || 'Cleaning',
+          date: (dateIdx >= 0 ? row[dateIdx] : '') || new Date().toISOString().split('T')[0],
+          status: (statusIdx >= 0 && row[statusIdx]?.toLowerCase() === 'completed')
+            ? 'completed' as const
+            : (statusIdx >= 0 && row[statusIdx]?.toLowerCase() === 'cancelled')
+            ? 'cancelled' as const
+            : 'scheduled' as const,
+          client: (clientIdx >= 0 ? row[clientIdx] : '') || 'Unknown',
+          cleaningTeam: (teamIdx >= 0 && row[teamIdx])
+            ? row[teamIdx].split(',').map((s: string) => s.trim()).filter(Boolean)
+            : [],
+          booked: bookedIdx >= 0 ? row[bookedIdx]?.toUpperCase() === 'TRUE' : false,
+          paid: paidIdx >= 0 ? row[paidIdx]?.toUpperCase() === 'TRUE' : false,
+          price: priceIdx >= 0 ? (parseFloat(row[priceIdx]) || 0) : 0,
+          phoneNumber: (phoneIdx >= 0 ? row[phoneIdx] : '') || '',
+          email: emailIdx >= 0 ? row[emailIdx] : undefined,
+          callDurationSeconds: 0,
+        };
+      });
+
+    // Try to fetch Calls sheet if it exists
+    let calls: Call[] = [];
+    try {
+      const callsResponse = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: 'Calls!A:Z',
+      });
+
+      const callsRows = callsResponse.data.values || [];
+      if (callsRows.length > 1) {
+        const callsHeaders = callsRows[0] || [];
+        const callsData = callsRows.slice(1);
+
+        calls = callsData
+          .filter(row => row && row.length > 0)
+          .map((row, index) => {
+            const phoneIdx = getCol(callsHeaders, 'phone');
+            const nameIdx = getCol(callsHeaders, 'caller name') >= 0
+              ? getCol(callsHeaders, 'caller name')
+              : getCol(callsHeaders, 'name');
+            const dateIdx = getCol(callsHeaders, 'date');
+            const durationIdx = getCol(callsHeaders, 'duration');
+            const outcomeIdx = getCol(callsHeaders, 'outcome');
+
+            return {
+              id: `call-${index + 1}`,
+              phoneNumber: (phoneIdx >= 0 ? row[phoneIdx] : '') || '',
+              callerName: (nameIdx >= 0 ? row[nameIdx] : '') || 'Unknown',
+              date: (dateIdx >= 0 ? row[dateIdx] : '') || new Date().toISOString(),
+              durationSeconds: durationIdx >= 0 ? (parseInt(row[durationIdx]) || 0) : 0,
+              outcome: (outcomeIdx >= 0 && row[outcomeIdx])
+                ? (row[outcomeIdx].toLowerCase() === 'booked' ? 'booked' as const
+                  : row[outcomeIdx].toLowerCase() === 'voicemail' ? 'voicemail' as const
+                  : 'not_booked' as const)
+                : undefined,
+            };
+          });
+      }
+    } catch (callsError) {
+      console.log('No Calls sheet found, skipping');
+    }
+
+    // Build profiles from jobs and calls
+    const profileMap = new Map<string, CallerProfile>();
+
+    jobs.forEach(job => {
+      if (job.phoneNumber) {
+        const existing = profileMap.get(job.phoneNumber);
+        if (existing) {
+          existing.totalCalls += 1;
+        } else {
+          profileMap.set(job.phoneNumber, {
+            phoneNumber: job.phoneNumber,
+            callerName: job.client,
+            totalCalls: 1,
+            messages: [],
+            lastCallDate: job.date,
+          });
+        }
+      }
+    });
+
+    calls.forEach(call => {
+      if (call.phoneNumber) {
+        const existing = profileMap.get(call.phoneNumber);
+        if (existing) {
+          existing.totalCalls += 1;
+          if (call.date > existing.lastCallDate) {
+            existing.lastCallDate = call.date;
+          }
+        } else {
+          profileMap.set(call.phoneNumber, {
+            phoneNumber: call.phoneNumber,
+            callerName: call.callerName,
+            totalCalls: 1,
+            messages: [],
+            lastCallDate: call.date,
+          });
+        }
+      }
+    });
+
+    const profiles = Array.from(profileMap.values());
+
+    console.log(`📊 Fetched ${jobs.length} jobs from Google Sheets`);
+
+    return {
+      jobsBooked: jobs.filter(j => j.booked).length,
+      quotesSent: jobs.length,
+      cleanersScheduled: jobs.filter(j => j.paid && j.cleaningTeam.length > 0).length,
+      callsAnswered: calls.length,
+      jobs,
+      calls,
+      profiles,
+      isLiveData: true,
+    };
+  } catch (error) {
+    console.error('Error fetching Google Sheets data:', error);
+    return null;
+  }
+}
+
 export async function getDashboardData(): Promise<DashboardData> {
-  // Try live data first
+  // 1. Try Supabase first
   const liveData = await getLiveDashboardData();
   if (liveData) {
     return liveData;
   }
 
-  // Fallback to mock data - BIG NUMBERS
+  // 2. Try Google Sheets
+  const sheetsData = await fetchGoogleSheetsData();
+  if (sheetsData) {
+    return sheetsData;
+  }
+
+  // 3. Fallback to mock data - BIG NUMBERS
   const jobs: Job[] = [
     // December 2025 - Heavy month
     {

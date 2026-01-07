@@ -1,46 +1,46 @@
 @import "tailwindcss";
 
 :root {
-  /* Unified Design System - Spotless Scrubbers Dashboard */
+  /* Clean Dark Theme - Professional Dashboard */
 
-  /* Base Colors - Light theme for content areas */
-  --background: #ffffff;
-  --foreground: #0f172a;
+  /* Base Colors - Solid Dark Background */
+  --background: #09090b;
+  --foreground: #fafafa;
 
-  /* Sidebar/Navigation - Dark theme for branding */
+  /* Sidebar/Navigation - Slightly lighter dark */
   --sidebar-bg: #0a0a0f;
-  --sidebar-text: #94a3b8;
-  --sidebar-active: #2563eb;
+  --sidebar-text: #a1a1aa;
+  --sidebar-active: #a78bfa;
 
-  /* Primary Actions - Blue */
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
-  --primary-light: #dbeafe;
+  /* Primary Actions - Purple */
+  --primary: #a78bfa;
+  --primary-hover: #8b5cf6;
+  --primary-light: #1e1b4b;
 
   /* Success/Money - Emerald */
-  --success: #059669;
-  --success-light: #d1fae5;
+  --success: #10b981;
+  --success-light: #064e3b;
 
   /* Warning - Amber */
-  --warning: #d97706;
-  --warning-light: #fef3c7;
+  --warning: #f59e0b;
+  --warning-light: #451a03;
 
   /* Error - Rose */
-  --error: #dc2626;
-  --error-light: #fee2e2;
+  --error: #ef4444;
+  --error-light: #450a0a;
 
-  /* Neutral Palette */
-  --slate-50: #f8fafc;
-  --slate-100: #f1f5f9;
-  --slate-200: #e2e8f0;
-  --slate-300: #cbd5e1;
-  --slate-600: #475569;
-  --slate-700: #334155;
-  --slate-900: #0f172a;
+  /* Neutral Palette - Dark Theme */
+  --slate-50: #18181b;
+  --slate-100: #27272a;
+  --slate-200: #3f3f46;
+  --slate-300: #52525b;
+  --slate-600: #a1a1aa;
+  --slate-700: #d4d4d8;
+  --slate-900: #fafafa;
 
-  /* Legacy support for existing dark components */
+  /* Neon colors */
   --neon-purple: #a78bfa;
-  --soft-emerald: #6ee7b7;
+  --soft-emerald: #10b981;
 }
 
 @theme inline {
@@ -87,71 +87,71 @@ body {
   @apply px-4 py-3 text-sm text-slate-900;
 }
 
-/* Card Containers */
+/* Card Containers - Dark Theme */
 .card-clean {
-  @apply rounded-lg border border-slate-300 bg-white shadow-sm;
+  @apply rounded-lg border border-zinc-800 bg-zinc-900 shadow-sm;
 }
 
 .card-header {
-  @apply px-4 py-3 bg-slate-50 border-b border-slate-300;
+  @apply px-4 py-3 bg-zinc-900 border-b border-zinc-800;
 }
 
-/* Buttons - Primary */
+/* Buttons - Dark Theme */
 .btn-primary {
-  @apply px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-500 shadow-sm hover:shadow transition-all;
+  @apply px-4 py-2 rounded-lg bg-purple-600 text-white font-semibold hover:bg-purple-500 shadow-sm hover:shadow transition-all;
 }
 
 .btn-secondary {
-  @apply px-4 py-2 rounded-lg border-2 border-slate-300 bg-white text-slate-700 font-semibold hover:border-slate-400 hover:shadow-sm transition-all;
+  @apply px-4 py-2 rounded-lg border-2 border-zinc-700 bg-zinc-900 text-zinc-300 font-semibold hover:border-zinc-600 hover:shadow-sm transition-all;
 }
 
-/* Status Badges */
+/* Status Badges - Dark Theme */
 .badge-success {
-  @apply px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-medium;
+  @apply px-2.5 py-1 rounded-md bg-emerald-950 text-emerald-400 border border-emerald-800 text-xs font-medium;
 }
 
 .badge-warning {
-  @apply px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-xs font-medium;
+  @apply px-2.5 py-1 rounded-md bg-amber-950 text-amber-400 border border-amber-800 text-xs font-medium;
 }
 
 .badge-info {
-  @apply px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-xs font-medium;
+  @apply px-2.5 py-1 rounded-md bg-blue-950 text-blue-400 border border-blue-800 text-xs font-medium;
 }
 
 .badge-neutral {
-  @apply px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-xs font-medium;
+  @apply px-2.5 py-1 rounded-md bg-zinc-900 text-zinc-400 border border-zinc-800 text-xs font-medium;
 }
 
-/* ===== LEGACY SUPPORT (Dark Theme Components) ===== */
+/* ===== DARK THEME COMPONENTS ===== */
 
-/* Glassmorphism - For sidebar/dark areas only */
+/* Clean Dark Cards - No blur, solid colors */
 .glass-card {
-  background: rgba(10, 10, 15, 0.7);
-  backdrop-filter: blur(24px);
-  border: 1px solid rgba(167, 139, 250, 0.12);
-  box-shadow: 0 4px 24px 0 rgba(0, 0, 0, 0.6);
+  background: #18181b;
+  border: 1px solid #27272a;
+  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.4);
 }
 
-/* Neon Glow - Sparingly used for branding */
+/* Neon Glow - Purple branding */
 .neon-glow {
   color: #a78bfa;
-  text-shadow: 0 0 20px rgba(167, 139, 250, 0.5),
-               0 0 40px rgba(167, 139, 250, 0.3);
+  text-shadow: 0 0 20px rgba(167, 139, 250, 0.6),
+               0 0 40px rgba(167, 139, 250, 0.4);
 }
 
 .neon-glow-subtle {
   color: #a78bfa;
-  text-shadow: 0 0 12px rgba(167, 139, 250, 0.4);
+  text-shadow: 0 0 12px rgba(167, 139, 250, 0.5);
 }
 
-/* Positive State */
+/* Positive State - Clean Green */
 .state-positive {
-  color: #059669;
+  color: #10b981;
+  text-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
 }
 
-/* Status Indicator - Legacy */
+/* Status Indicator - Solid Dark */
 .status-indicator {
-  @apply bg-slate-50 border border-slate-200;
+  @apply bg-zinc-900 border border-zinc-800;
 }
 
 /* Enable Transitions (override previous * rule) */
@@ -159,23 +159,23 @@ button, a, [role="button"] {
   transition: all 150ms ease-in-out;
 }
 
-/* Scrollbar */
+/* Scrollbar - Dark Theme */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(10, 10, 15, 0.3);
+  background: #18181b;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(167, 139, 250, 0.2);
-  border-radius: 3px;
+  background: #3f3f46;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(167, 139, 250, 0.3);
+  background: #52525b;
 }
 
 /* Subtle Pulse */
