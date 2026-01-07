@@ -352,6 +352,8 @@ export default function CalendarPage() {
   const [notifyAffected, setNotifyAffected] = useState(false);
   const [panelWidth, setPanelWidth] = useState(420);
   const [resizing, setResizing] = useState(false);
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [conflictDetails, setConflictDetails] = useState<{ conflicts: Conflict[]; targetDate: string; targetTime: string } | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -424,7 +426,9 @@ export default function CalendarPage() {
 
   const jobsByDate = useMemo(() => {
     const map = new Map<string, Job[]>();
-    jobs.forEach((job) => {
+    // Only show scheduled jobs (jobs with cleaning team assigned)
+    const scheduledJobs = jobs.filter(job => job.cleaningTeam && job.cleaningTeam.length > 0);
+    scheduledJobs.forEach((job) => {
       const dateKey = toDateKey(parseJobDate(job));
       if (!map.has(dateKey)) {
         map.set(dateKey, []);
@@ -634,10 +638,47 @@ export default function CalendarPage() {
 
     if (currentDateKey === dateKey && dropMinutes === timeToMinutes(existingTime)) {
       setSaveError("Drop cancelled: same time selected.");
+      setDraggingJobId(null);
+      setDragOverDate(null);
+      setDragOverMinutes(null);
       return;
     }
 
     const targetTimeValue = minutesToTime(dropMinutes);
+
+    // Check for conflicts
+    const nextStart = new Date(`${dateKey}T${targetTimeValue}:00`);
+    const nextEnd = addMinutes(nextStart, Math.round(getDurationHours(job) * 60));
+
+    const detectedConflicts = jobs
+      .filter((otherJob) => otherJob.id !== job.id)
+      .map((otherJob) => {
+        const jobStart = parseJobDate(otherJob);
+        const jobEnd = addMinutes(jobStart, Math.round(getDurationHours(otherJob) * 60));
+        const sameDay = toDateKey(jobStart) === toDateKey(nextStart);
+        const overlap = sameDay && jobStart < nextEnd && jobEnd > nextStart;
+        if (!overlap) {
+          return null;
+        }
+
+        const teamOverlap = otherJob.cleaningTeam.some((member) => job.cleaningTeam.includes(member));
+        const reason = teamOverlap
+          ? `Team conflict with ${otherJob.client}`
+          : `Time conflict with ${otherJob.client}`;
+
+        return { job: otherJob, reason } as Conflict;
+      })
+      .filter(Boolean) as Conflict[];
+
+    if (detectedConflicts.length > 0) {
+      setConflictDetails({ conflicts: detectedConflicts, targetDate: dateKey, targetTime: targetTimeValue });
+      setShowConflictModal(true);
+      setDraggingJobId(null);
+      setDragOverDate(null);
+      setDragOverMinutes(null);
+      return;
+    }
+
     const updatedDateTime = formatLocalDateTime(
       new Date(`${dateKey}T${targetTimeValue}:00`)
     );
@@ -1021,14 +1062,22 @@ export default function CalendarPage() {
 
             <div className="grid grid-cols-[80px_1fr]">
               <div className="border-r border-zinc-800">
-                {dayHours.map((hour) => (
-                  <div
-                    key={hour}
-                    className="h-14 border-b border-zinc-800/60 text-xs text-zinc-500 flex items-start justify-center pt-2"
-                  >
-                    {hour}:00
-                  </div>
-                ))}
+                {dayHours.map((hour) => {
+                  const time = new Date();
+                  time.setHours(hour, 0, 0, 0);
+                  const formatted = time.toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit"
+                  });
+                  return (
+                    <div
+                      key={hour}
+                      className="h-14 border-b border-zinc-800/60 text-xs text-zinc-500 flex items-start justify-center pt-2"
+                    >
+                      {formatted}
+                    </div>
+                  );
+                })}
               </div>
 
               <div
@@ -1168,12 +1217,18 @@ export default function CalendarPage() {
               <div className="flex flex-wrap gap-2 text-xs">
                 <span
                   className={`rounded-full px-2 py-0.5 ${
-                    panelJob.booked
+                    panelJob.cleaningTeam && panelJob.cleaningTeam.length > 0
+                      ? "bg-blue-500/20 text-blue-100"
+                      : panelJob.email
                       ? "bg-emerald-500/20 text-emerald-100"
                       : "bg-zinc-800 text-zinc-400"
                   }`}
                 >
-                  {panelJob.booked ? "Booked" : "Unbooked"}
+                  {panelJob.cleaningTeam && panelJob.cleaningTeam.length > 0
+                    ? "Scheduled"
+                    : panelJob.email
+                    ? "Quoted"
+                    : "New Lead"}
                 </span>
                 <span
                   className={`rounded-full px-2 py-0.5 ${
@@ -1462,6 +1517,83 @@ export default function CalendarPage() {
             )}
           </div>
         </aside>
+      )}
+
+      {showConflictModal && conflictDetails && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-8">
+          <div className="glass-card rounded-3xl p-8 max-w-2xl w-full space-y-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold text-zinc-200">
+                  Scheduling Conflict Detected
+                </h2>
+                <p className="text-sm text-zinc-500 mt-2">
+                  The selected time conflicts with existing appointments
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowConflictModal(false);
+                  setConflictDetails(null);
+                }}
+                className="text-zinc-600 hover:text-zinc-400 text-2xl w-10 h-10 flex items-center justify-center rounded-full hover:bg-zinc-800/50"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
+                Conflicts ({conflictDetails.conflicts.length})
+              </h3>
+              <div className="space-y-3">
+                {conflictDetails.conflicts.map((conflict) => (
+                  <div
+                    key={conflict.job.id}
+                    className="rounded-xl p-4 bg-amber-500/10 border border-amber-500/40"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-amber-100">
+                        {conflict.job.client}
+                      </span>
+                      <span className="text-xs text-amber-200">
+                        {formatTimeRange(conflict.job)}
+                      </span>
+                    </div>
+                    <div className="text-sm text-amber-200/80">
+                      {conflict.reason}
+                    </div>
+                    <div className="text-xs text-amber-200/60 mt-1">
+                      {conflict.job.title} • Team: {conflict.job.cleaningTeam.join(", ")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-4">
+              <button
+                onClick={() => {
+                  setShowConflictModal(false);
+                  setConflictDetails(null);
+                }}
+                className="flex-1 rounded-xl bg-zinc-800 px-4 py-3 text-sm font-semibold text-zinc-200 hover:bg-zinc-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowConflictModal(false);
+                  setConflictDetails(null);
+                  // Could add logic here to open reschedule panel with the conflicting time
+                }}
+                className="flex-1 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-500 transition-colors"
+              >
+                Choose Different Time
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
