@@ -343,7 +343,7 @@ function DayColumn({
       onDragOver={onDragOver}
       onDrop={onDrop}
       className={`relative bg-white ${
-        isActive ? "ring-2 ring-inset ring-blue-400 bg-blue-50/30" : ""
+        isActive ? "bg-blue-50/40" : ""
       }`}
       style={{ height: HOUR_HEIGHT * (END_HOUR - START_HOUR + 1) }}
     >
@@ -1229,17 +1229,15 @@ export default function CalendarPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-[70px_1fr] border-t border-slate-300">
-              <div className="border-r border-slate-300 bg-slate-50">
-                {dayHours.map((hour, index) => {
+            <div className="grid grid-cols-[60px_1fr] border-t border-slate-200">
+              <div className="border-r border-slate-200 bg-white">
+                {dayHours.map((hour) => {
                   const time = new Date();
                   time.setHours(hour, 0, 0, 0);
                   return (
                     <div
                       key={hour}
-                      className={`h-14 border-b border-slate-200 text-xs font-medium text-slate-600 flex items-start justify-center pt-1 ${
-                        index % 2 === 0 ? "bg-slate-50" : "bg-white"
-                      }`}
+                      className="h-14 border-b border-slate-100 text-[11px] font-medium text-slate-400 flex items-start justify-end pr-2 -mt-2"
                     >
                       {formatTime(time)}
                     </div>
@@ -1256,17 +1254,18 @@ export default function CalendarPage() {
                   const dateKey = toDateKey(day);
                   const dayJobs = jobsByDate.get(dateKey) || [];
                   const isToday = toDateKey(new Date()) === dateKey;
+                  const dayOfWeek = day.toLocaleDateString("en-US", { weekday: "short" });
+                  const dayNum = day.getDate();
 
                   return (
-                    <div key={dateKey}>
-                      <div className={`text-xs font-bold text-center py-2 border-b border-slate-300 ${
-                        isToday ? "bg-blue-50 text-blue-700" : "bg-slate-50 text-slate-700"
-                      } ${dayIndex > 0 ? "border-l border-slate-300" : ""}`}>
-                        {day.toLocaleDateString("en-US", {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric"
-                        })}
+                    <div key={dateKey} className={dayIndex > 0 ? "border-l border-slate-200" : ""}>
+                      <div className={`text-center py-2 border-b border-slate-200 bg-white`}>
+                        <div className={`text-[11px] font-medium uppercase ${isToday ? "text-blue-600" : "text-slate-500"}`}>
+                          {dayOfWeek}
+                        </div>
+                        <div className={`text-2xl font-normal ${isToday ? "bg-blue-600 text-white w-10 h-10 rounded-full mx-auto flex items-center justify-center" : "text-slate-900"}`}>
+                          {dayNum}
+                        </div>
                       </div>
                       <DayColumn
                         isActive={dragOverDate === dateKey}
@@ -1278,12 +1277,10 @@ export default function CalendarPage() {
                         }}
                         onDrop={(event) => handleDrop(dateKey, event)}
                       >
-                        {dayHours.map((hour, index) => (
+                        {dayHours.map((hour) => (
                           <div
                             key={`${dateKey}-${hour}`}
-                            className={`border-b border-slate-200 ${
-                              index % 2 === 0 ? "bg-slate-50" : "bg-white"
-                            }`}
+                            className="border-b border-slate-100 bg-white"
                             style={{ height: HOUR_HEIGHT }}
                           />
                         ))}
