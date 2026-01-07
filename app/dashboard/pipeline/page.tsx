@@ -226,6 +226,7 @@ export default function PipelinePage() {
 
     setStageMemory((prev) => {
       const next = { ...prev };
+      let hasChanges = false;
       computedStages.forEach((stage, phone) => {
         const previousStage = prev[phone];
         if (
@@ -233,9 +234,11 @@ export default function PipelinePage() {
           stageOrder.indexOf(stage) > stageOrder.indexOf(previousStage)
         ) {
           next[phone] = stage;
+          hasChanges = true;
         }
       });
-      return next;
+      // Only return new object if there were actual changes
+      return hasChanges ? next : prev;
     });
   }, [computedStages]);
 
