@@ -14,6 +14,7 @@ export default function ClientPortalPage() {
   const [selectedClient, setSelectedClient] = useState<CallerProfile | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     async function fetchData() {
@@ -54,6 +55,12 @@ export default function ClientPortalPage() {
     { id: 'reviews', label: 'Reviews' },
   ];
 
+  // Filter profiles based on search query
+  const filteredProfiles = profiles.filter(profile =>
+    profile.callerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    profile.phoneNumber.includes(searchQuery)
+  );
+
   if (loading) {
     return (
       <div className="p-12">
@@ -82,13 +89,20 @@ export default function ClientPortalPage() {
           {/* Client List */}
           <div className="lg:col-span-3">
             <div className="glass-card rounded-2xl overflow-hidden">
-              <div className="p-4 border-b border-zinc-800/30">
+              <div className="p-4 border-b border-zinc-800/30 space-y-3">
                 <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
-                  All Clients ({profiles.length})
+                  All Clients ({filteredProfiles.length})
                 </h2>
+                <input
+                  type="text"
+                  placeholder="Search by name or phone..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-zinc-800/50 border border-zinc-700 text-sm text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-purple-400/50"
+                />
               </div>
               <div className="divide-y divide-zinc-800/30 max-h-[800px] overflow-y-auto">
-                {profiles.map((profile) => {
+                {filteredProfiles.map((profile) => {
                   const clientJobs = getClientJobs(profile.phoneNumber);
                   const revenue = getClientRevenue(profile.phoneNumber);
 
