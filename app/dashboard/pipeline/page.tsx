@@ -29,7 +29,12 @@ const stageOrder: PipelineStage[] = [
   "Job Completed"
 ];
 
-const stageTitleClass = "text-purple-200";
+const stageColors: Record<PipelineStage, string> = {
+  "New Lead": "bg-blue-50 border-blue-200 text-blue-700",
+  "Quoted & Invoiced": "bg-amber-50 border-amber-200 text-amber-700",
+  "Scheduled / Underway": "bg-emerald-50 border-emerald-200 text-emerald-700",
+  "Job Completed": "bg-slate-100 border-slate-300 text-slate-700"
+};
 
 function formatPhone(phone: string) {
   return phone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3");
@@ -300,14 +305,14 @@ export default function PipelinePage() {
   }, [selectedClient, now]);
 
   return (
-    <div className="p-12 space-y-10">
-      <div className="max-w-[1600px] mx-auto space-y-10">
-        <div className="text-center space-y-3">
-          <h1 className="text-6xl font-semibold tracking-tight text-zinc-100">
-            Pipeline Journey
+    <div className="min-h-screen bg-white p-6 md:p-8">
+      <div className="max-w-[1600px] mx-auto space-y-6">
+        <div className="pb-4 border-b border-slate-200">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+            Client Status
           </h1>
-          <p className="text-sm text-zinc-400">
-            Every client, staged for operations and retention.
+          <p className="text-sm text-slate-600 mt-1">
+            Track every client from first contact to job completion • {clients.length} total clients
           </p>
         </div>
 
@@ -315,20 +320,22 @@ export default function PipelinePage() {
           {stageOrder.map((stage) => (
             <div
               key={stage}
-              className="rounded-3xl border border-zinc-800/60 bg-zinc-950/60 p-4"
+              className="card-clean"
             >
-              <div className="flex items-center justify-between">
-                <div className={`text-xs uppercase tracking-[0.2em] ${stageTitleClass}`}>
-                  {stage}
+              <div className="card-header flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={`text-xs font-bold uppercase tracking-wide text-slate-700`}>
+                    {stage}
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${stageColors[stage]}`}>
+                    {pipeline[stage].length}
+                  </span>
                 </div>
-                <span className="text-xs text-zinc-500">
-                  {pipeline[stage].length}
-                </span>
               </div>
-              <div className="mt-4 space-y-3">
+              <div className="p-4 space-y-2">
                 {pipeline[stage].length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-zinc-800/60 px-3 py-4 text-xs text-zinc-600">
-                    No clients here yet
+                  <div className="rounded-lg border border-dashed border-slate-300 px-3 py-6 text-center text-xs text-slate-500">
+                    No clients in this stage
                   </div>
                 ) : (
                     pipeline[stage].map((client) => {
@@ -342,25 +349,24 @@ export default function PipelinePage() {
                       <button
                         key={`${stage}-${client.phoneNumber}`}
                         onClick={() => setSelectedClient(client)}
-                        className="w-full rounded-2xl border border-zinc-800/60 bg-zinc-900/60 p-4 text-left transition hover:border-zinc-600"
+                        className="w-full rounded-lg border border-slate-200 bg-white p-3 text-left transition-all hover:border-blue-300 hover:shadow-sm"
                       >
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start justify-between mb-2">
                           <div>
-                            <div className="text-sm font-semibold text-zinc-100">
+                            <div className="text-sm font-bold text-slate-900">
                               {client.name}
                             </div>
-                            <div className="text-xs text-zinc-500 mt-1">
+                            <div className="text-xs text-slate-600 mt-0.5">
                               {formatPhone(client.phoneNumber)}
                             </div>
                           </div>
-                          <span className="text-[10px] uppercase tracking-wider text-zinc-500">
-                            {stage}
+                          <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${stageColors[stage]}`}>
+                            {client.jobs.length} {client.jobs.length === 1 ? 'job' : 'jobs'}
                           </span>
                         </div>
                         {latestJob && (
-                          <div className="mt-3 text-xs text-zinc-400">
-                            {latestJob.title} -{" "}
-                            {new Date(
+                          <div className="text-xs text-slate-600 py-1.5 border-t border-slate-100">
+                            <span className="font-medium">{latestJob.title}</span> • {new Date(
                               latestJob.scheduledAt || latestJob.date
                             ).toLocaleDateString("en-US", {
                               month: "short",
@@ -368,8 +374,8 @@ export default function PipelinePage() {
                             })}
                           </div>
                         )}
-                        <div className="mt-3 text-[10px] uppercase tracking-wider text-zinc-500">
-                          Last activity {new Date(client.lastActivity).toLocaleDateString("en-US", {
+                        <div className="text-[10px] text-slate-500 mt-1">
+                          Last activity: {new Date(client.lastActivity).toLocaleDateString("en-US", {
                             month: "short",
                             day: "numeric",
                             hour: "numeric",

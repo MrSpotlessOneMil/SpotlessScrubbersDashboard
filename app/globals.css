@@ -1,13 +1,46 @@
 @import "tailwindcss";
 
 :root {
-  --background: #000000;
-  --foreground: #e4e4e7;
+  /* Unified Design System - Spotless Scrubbers Dashboard */
+
+  /* Base Colors - Light theme for content areas */
+  --background: #ffffff;
+  --foreground: #0f172a;
+
+  /* Sidebar/Navigation - Dark theme for branding */
+  --sidebar-bg: #0a0a0f;
+  --sidebar-text: #94a3b8;
+  --sidebar-active: #2563eb;
+
+  /* Primary Actions - Blue */
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-light: #dbeafe;
+
+  /* Success/Money - Emerald */
+  --success: #059669;
+  --success-light: #d1fae5;
+
+  /* Warning - Amber */
+  --warning: #d97706;
+  --warning-light: #fef3c7;
+
+  /* Error - Rose */
+  --error: #dc2626;
+  --error-light: #fee2e2;
+
+  /* Neutral Palette */
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-900: #0f172a;
+
+  /* Legacy support for existing dark components */
   --neon-purple: #a78bfa;
-  --muted-purple: #8b7ba8;
   --soft-emerald: #6ee7b7;
-  --glass-bg: rgba(10, 10, 15, 0.6);
-  --glass-border: rgba(167, 139, 250, 0.12);
 }
 
 @theme inline {
@@ -18,12 +51,80 @@
 }
 
 body {
-  background: #000000;
+  background: var(--background);
   color: var(--foreground);
   min-height: 100vh;
 }
 
-/* Glassmorphism - Refined */
+/* ===== NEW DESIGN SYSTEM UTILITIES ===== */
+
+/* Spreadsheet-style Table */
+.table-spreadsheet {
+  @apply w-full border-collapse;
+}
+
+.table-spreadsheet thead {
+  @apply bg-slate-100 border-b-2 border-slate-300;
+}
+
+.table-spreadsheet th {
+  @apply px-4 py-3 text-left text-xs font-bold text-slate-700 uppercase tracking-wide;
+}
+
+.table-spreadsheet tbody tr {
+  @apply border-b border-slate-200;
+}
+
+.table-spreadsheet tbody tr:nth-child(even) {
+  @apply bg-slate-50;
+}
+
+.table-spreadsheet tbody tr:hover {
+  @apply bg-blue-50;
+}
+
+.table-spreadsheet td {
+  @apply px-4 py-3 text-sm text-slate-900;
+}
+
+/* Card Containers */
+.card-clean {
+  @apply rounded-lg border border-slate-300 bg-white shadow-sm;
+}
+
+.card-header {
+  @apply px-4 py-3 bg-slate-50 border-b border-slate-300;
+}
+
+/* Buttons - Primary */
+.btn-primary {
+  @apply px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-500 shadow-sm hover:shadow transition-all;
+}
+
+.btn-secondary {
+  @apply px-4 py-2 rounded-lg border-2 border-slate-300 bg-white text-slate-700 font-semibold hover:border-slate-400 hover:shadow-sm transition-all;
+}
+
+/* Status Badges */
+.badge-success {
+  @apply px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-medium;
+}
+
+.badge-warning {
+  @apply px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-xs font-medium;
+}
+
+.badge-info {
+  @apply px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-xs font-medium;
+}
+
+.badge-neutral {
+  @apply px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-xs font-medium;
+}
+
+/* ===== LEGACY SUPPORT (Dark Theme Components) ===== */
+
+/* Glassmorphism - For sidebar/dark areas only */
 .glass-card {
   background: rgba(10, 10, 15, 0.7);
   backdrop-filter: blur(24px);
@@ -31,45 +132,31 @@ body {
   box-shadow: 0 4px 24px 0 rgba(0, 0, 0, 0.6);
 }
 
-/* Neon Glow - High Contrast */
+/* Neon Glow - Sparingly used for branding */
 .neon-glow {
   color: #a78bfa;
   text-shadow: 0 0 20px rgba(167, 139, 250, 0.5),
                0 0 40px rgba(167, 139, 250, 0.3);
 }
 
-/* Subtle Glow - Readable */
 .neon-glow-subtle {
   color: #a78bfa;
   text-shadow: 0 0 12px rgba(167, 139, 250, 0.4);
 }
 
-/* Positive State - Soft Emerald */
+/* Positive State */
 .state-positive {
-  color: #6ee7b7;
-  text-shadow: 0 0 16px rgba(110, 231, 183, 0.3);
+  color: #059669;
 }
 
-/* Muted State */
-.state-muted {
-  color: #a1a1aa;
-}
-
-/* Status Indicator */
+/* Status Indicator - Legacy */
 .status-indicator {
-  background: rgba(167, 139, 250, 0.08);
-  border: 1px solid rgba(167, 139, 250, 0.15);
+  @apply bg-slate-50 border border-slate-200;
 }
 
-/* Trust Signal */
-.trust-signal {
-  background: rgba(110, 231, 183, 0.05);
-  border: 1px solid rgba(110, 231, 183, 0.1);
-}
-
-/* No Transitions */
-* {
-  transition: none;
+/* Enable Transitions (override previous * rule) */
+button, a, [role="button"] {
+  transition: all 150ms ease-in-out;
 }
 
 /* Scrollbar */
@@ -99,4 +186,9 @@ body {
 
 .subtle-pulse {
   animation: subtle-pulse 3s ease-in-out infinite;
+}
+
+/* Smooth Drag Indicator */
+.drag-indicator-smooth {
+  transition: top 0.15s ease-out;
 }

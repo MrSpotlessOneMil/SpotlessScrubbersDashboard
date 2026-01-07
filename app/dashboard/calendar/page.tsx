@@ -4,6 +4,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type DragEvent,
   type ReactNode
@@ -266,27 +267,26 @@ function JobChip({
   const priceLabel = job.price
     ? `$${Number(job.price).toLocaleString("en-US")}`
     : "";
-  const secondaryText = isDragging ? "text-blue-100/80" : "text-slate-500";
-  const mutedText = isDragging ? "text-blue-100/80" : "text-slate-600";
+  const secondaryText = isDragging ? "text-blue-100" : "text-slate-600";
+  const mutedText = isDragging ? "text-blue-100/90" : "text-slate-500";
   return (
     <button
       draggable
       onDragStart={(event) => onDragStart(event, job)}
       onDragEnd={onDragEnd}
       onClick={() => onSelect(job)}
-      className={`w-full text-left text-xs rounded-lg px-2 py-1 transition-all ${className ?? ""} ${
+      className={`w-full text-left text-xs rounded-md px-2.5 py-1.5 transition-all cursor-move ${className ?? ""} ${
         isDragging
-          ? "bg-blue-600 text-white shadow-lg"
-          : "bg-white text-slate-900 border border-slate-200 hover:border-blue-400"
+          ? "bg-blue-600 text-white shadow-lg scale-105 rotate-1"
+          : "bg-white text-slate-900 border border-slate-300 hover:border-blue-400 hover:shadow-sm"
       }`}
     >
-      <div className="font-semibold truncate">{job.client}</div>
-      <div className={`flex items-center justify-between text-[10px] ${secondaryText}`}>
-        <span>{formatTimeRange(job)}</span>
-        <span className={`text-right tabular-nums ${secondaryText}`}>{priceLabel}</span>
+      <div className="font-bold truncate mb-0.5">{job.client}</div>
+      <div className={`flex items-center justify-between text-[10px] ${secondaryText} mb-0.5`}>
+        <span className="font-medium">{formatTimeRange(job)}</span>
+        <span className={`text-right tabular-nums font-semibold ${isDragging ? "text-blue-100" : "text-emerald-600"}`}>{priceLabel}</span>
       </div>
-      <div className={`truncate ${mutedText}`}>{job.title}</div>
-      <div className={`text-[10px] ${secondaryText}`}>Team: {team}</div>
+      <div className={`truncate text-[10px] ${mutedText}`}>{job.title}</div>
     </button>
   );
 }
@@ -312,8 +312,8 @@ function DayDropZone({
       onDragLeave={onDragLeave}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      className={`border border-slate-200 p-2 min-h-[120px] transition-colors ${
-        isActive ? "bg-blue-50 border-blue-400" : "bg-white"
+      className={`border-r border-b border-slate-200 p-2 min-h-[110px] transition-colors ${
+        isActive ? "bg-blue-50/50 ring-2 ring-inset ring-blue-400" : "bg-white hover:bg-slate-50/50"
       }`}
     >
       {children}
@@ -342,8 +342,8 @@ function DayColumn({
       onDragLeave={onDragLeave}
       onDragOver={onDragOver}
       onDrop={onDrop}
-      className={`relative border border-slate-200 bg-white ${
-        isActive ? "ring-1 ring-blue-400" : ""
+      className={`relative bg-white ${
+        isActive ? "ring-2 ring-inset ring-blue-400 bg-blue-50/30" : ""
       }`}
       style={{ height: HOUR_HEIGHT * (END_HOUR - START_HOUR + 1) }}
     >
@@ -364,6 +364,7 @@ export default function CalendarPage() {
   const [draggingJobId, setDraggingJobId] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [dragOverMinutes, setDragOverMinutes] = useState<number | null>(null);
+  const lastDragPositionRef = useRef<{ date: string | null; minutes: number | null }>({ date: null, minutes: null });
   const [targetDate, setTargetDate] = useState("");
   const [targetTime, setTargetTime] = useState("09:00");
   const [teamInput, setTeamInput] = useState("");
@@ -718,6 +719,7 @@ export default function CalendarPage() {
     setDraggingJobId(null);
     setDragOverDate(null);
     setDragOverMinutes(null);
+    lastDragPositionRef.current = { date: null, minutes: null };
   };
 
   const handleDrop = async (
@@ -858,8 +860,16 @@ export default function CalendarPage() {
       0,
       totalMinutes - MIN_SLOT
     );
-    setDragOverDate(dateKey);
-    setDragOverMinutes(minutes);
+
+    // Only update state if the snapped position has changed
+    if (
+      lastDragPositionRef.current.date !== dateKey ||
+      lastDragPositionRef.current.minutes !== minutes
+    ) {
+      lastDragPositionRef.current = { date: dateKey, minutes };
+      setDragOverDate(dateKey);
+      setDragOverMinutes(minutes);
+    }
   };
 
   const handleRescheduleConfirm = async () => {
@@ -1053,35 +1063,35 @@ export default function CalendarPage() {
     : null;
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8 text-slate-900">
+    <div className="min-h-screen bg-white p-6 md:p-8 text-slate-900">
       <div
-        className="max-w-7xl mx-auto space-y-6"
+        className="max-w-7xl mx-auto space-y-4"
         style={{
           paddingRight: panelOpen ? panelWidth + 24 : undefined
         }}
       >
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between pb-4 border-b border-slate-200">
           <div>
-            <h1 className="text-3xl font-semibold text-slate-900">Calendar</h1>
-            <p className="text-sm text-slate-500">
-              Drag jobs to reschedule with precise time control.
+            <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Calendar Schedule</h1>
+            <p className="text-sm text-slate-600 mt-1">
+              Drag & drop jobs to reschedule • 15-minute time slots
             </p>
           </div>
           <div className="flex items-center gap-3">
             {!isLiveData && (
-              <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                MOCK DATA
+              <Badge className="bg-yellow-50 text-yellow-700 border border-yellow-200 text-xs">
+                DEMO MODE
               </Badge>
             )}
-            <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white p-1 text-xs">
+            <div className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white p-0.5 text-xs shadow-sm">
               {["month", "week", "day"].map((mode) => (
                 <button
                   key={mode}
                   onClick={() => setViewMode(mode as ViewMode)}
-                  className={`px-3 py-1 rounded-full uppercase tracking-wider transition-colors ${
+                  className={`px-3 py-1.5 rounded-md uppercase tracking-wide font-medium transition-all ${
                     viewMode === mode
-                      ? "bg-blue-600 text-white"
-                      : "text-slate-500 hover:text-slate-900"
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                   }`}
                 >
                   {mode}
@@ -1091,46 +1101,47 @@ export default function CalendarPage() {
           </div>
         </div>
         {saveError && (
-          <div className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-700 flex items-center gap-2 shadow-sm">
+            <span className="text-rose-600 font-semibold">⚠</span>
             {saveError}
           </div>
         )}
 
         {viewMode === "month" && (
-          <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="rounded-lg border border-slate-300 bg-white overflow-hidden shadow-sm">
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-300 flex items-center justify-between">
               <button
                 onClick={() => setCurrentDate(new Date(year, month - 1, 1))}
-                className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-900 rounded-lg transition-colors"
+                className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-white rounded-md border border-slate-200 transition-all"
               >
-                Previous
+                ← Previous
               </button>
-              <h2 className="text-lg font-semibold text-slate-900">{monthName}</h2>
+              <h2 className="text-base font-semibold text-slate-900">{monthName}</h2>
               <button
                 onClick={() => setCurrentDate(new Date(year, month + 1, 1))}
-                className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-900 rounded-lg transition-colors"
+                className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-white rounded-md border border-slate-200 transition-all"
               >
-                Next
+                Next →
               </button>
             </div>
 
-            <div className="p-4">
-              <div className="grid grid-cols-7 gap-2 mb-2">
+            <div className="p-3">
+              <div className="grid grid-cols-7 gap-0 mb-1 border-b border-slate-300">
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
                   <div
                     key={day}
-                    className="text-left text-xs font-semibold text-slate-600 py-2 pl-2"
+                    className="text-center text-xs font-bold text-slate-700 py-2 uppercase tracking-wide bg-slate-50"
                   >
                     {day}
                   </div>
                 ))}
               </div>
 
-              <div className="grid grid-cols-7 gap-0">
+              <div className="grid grid-cols-7 gap-0 border border-slate-300">
                 {Array.from({ length: startingDayOfWeek }).map((_, idx) => (
                   <div
                     key={`empty-${idx}`}
-                    className="min-h-[120px] border border-slate-200 bg-white"
+                    className="min-h-[110px] border-r border-b border-slate-200 bg-slate-50/30"
                   />
                 ))}
 
@@ -1142,6 +1153,7 @@ export default function CalendarPage() {
                     new Date().getDate() === date &&
                     new Date().getMonth() === month &&
                     new Date().getFullYear() === year;
+                  const isWeekend = [0, 6].includes(new Date(year, month, date).getDay());
 
                   return (
                     <DayDropZone
@@ -1159,13 +1171,17 @@ export default function CalendarPage() {
                       onDrop={(event) => handleDrop(dateKey, event)}
                     >
                       <div
-                        className={`text-xs font-semibold mb-2 ${
-                          isToday ? "text-blue-600" : "text-slate-500"
+                        className={`text-xs font-bold mb-2 px-2 py-1 ${
+                          isToday
+                            ? "text-blue-600 bg-blue-50 rounded-md"
+                            : isWeekend
+                            ? "text-slate-400"
+                            : "text-slate-600"
                         }`}
                       >
                         {date}
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1.5 px-1">
                         {dayJobs.map((job) => (
                           <JobChip
                             key={job.id}
@@ -1186,17 +1202,17 @@ export default function CalendarPage() {
         )}
 
         {viewMode !== "month" && (
-          <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="rounded-lg border border-slate-300 bg-white overflow-hidden shadow-sm">
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-300 flex items-center justify-between">
               <button
                 onClick={() =>
                   setCurrentDate(addDays(currentDate, viewMode === "day" ? -1 : -7))
                 }
-                className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-900 rounded-lg transition-colors"
+                className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-white rounded-md border border-slate-200 transition-all"
               >
-                Previous
+                ← Previous
               </button>
-              <h2 className="text-lg font-semibold text-slate-900">
+              <h2 className="text-base font-semibold text-slate-900">
                 {viewMode === "day"
                   ? formatDisplayDate(toDateKey(currentDate))
                   : `${formatDisplayDate(toDateKey(weekDays[0]))} - ${formatDisplayDate(
@@ -1207,21 +1223,21 @@ export default function CalendarPage() {
                 onClick={() =>
                   setCurrentDate(addDays(currentDate, viewMode === "day" ? 1 : 7))
                 }
-                className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-900 rounded-lg transition-colors"
+                className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-white rounded-md border border-slate-200 transition-all"
               >
-                Next
+                Next →
               </button>
             </div>
 
-            <div className="grid grid-cols-[80px_1fr]">
-              <div className="border-r border-slate-200">
+            <div className="grid grid-cols-[70px_1fr] border-t border-slate-300">
+              <div className="border-r border-slate-300 bg-slate-50">
                 {dayHours.map((hour, index) => {
                   const time = new Date();
                   time.setHours(hour, 0, 0, 0);
                   return (
                     <div
                       key={hour}
-                      className={`h-14 border-b border-slate-200 text-xs text-slate-500 flex items-start justify-start pl-2 pt-2 ${
+                      className={`h-14 border-b border-slate-200 text-xs font-medium text-slate-600 flex items-start justify-center pt-1 ${
                         index % 2 === 0 ? "bg-slate-50" : "bg-white"
                       }`}
                     >
@@ -1236,13 +1252,16 @@ export default function CalendarPage() {
                   viewMode === "day" ? "grid-cols-1" : "grid-cols-7"
                 } gap-0`}
               >
-                {(viewMode === "day" ? [currentDate] : weekDays).map((day) => {
+                {(viewMode === "day" ? [currentDate] : weekDays).map((day, dayIndex) => {
                   const dateKey = toDateKey(day);
                   const dayJobs = jobsByDate.get(dateKey) || [];
+                  const isToday = toDateKey(new Date()) === dateKey;
 
                   return (
-                    <div key={dateKey} className="space-y-2">
-                      <div className="text-xs text-slate-600 uppercase tracking-wider pl-2">
+                    <div key={dateKey}>
+                      <div className={`text-xs font-bold text-center py-2 border-b border-slate-300 ${
+                        isToday ? "bg-blue-50 text-blue-700" : "bg-slate-50 text-slate-700"
+                      } ${dayIndex > 0 ? "border-l border-slate-300" : ""}`}>
                         {day.toLocaleDateString("en-US", {
                           weekday: "short",
                           month: "short",
@@ -1270,7 +1289,7 @@ export default function CalendarPage() {
                         ))}
                         {dragOverDate === dateKey && dragOverMinutes !== null && (
                           <div
-                            className="absolute left-2 right-2 z-20"
+                            className="absolute left-2 right-2 z-20 drag-indicator-smooth"
                             style={{ top: (dragOverMinutes / 60) * HOUR_HEIGHT }}
                           >
                             <div className="flex items-center gap-2 text-[10px] text-blue-600">
@@ -1321,60 +1340,62 @@ export default function CalendarPage() {
 
       {panelOpen && panelJob && (
         <aside
-          className="fixed top-0 right-0 z-40 h-full border-l border-slate-200 bg-white"
+          className="fixed top-0 right-0 z-40 h-full border-l-2 border-slate-300 bg-white shadow-xl"
           style={{ width: panelWidth }}
         >
           <div
-            className="absolute left-0 top-0 h-full w-1 cursor-col-resize bg-slate-200 hover:bg-blue-300 transition-colors"
+            className="absolute left-0 top-0 h-full w-1.5 cursor-col-resize bg-slate-300 hover:bg-blue-400 transition-colors"
             onMouseDown={() => setResizing(true)}
           />
-          <div className="flex items-start justify-between border-b border-slate-200 p-4">
+          <div className="flex items-start justify-between bg-slate-50 border-b-2 border-slate-300 px-5 py-4">
             <div>
-              <div className="text-[10px] uppercase tracking-widest text-slate-500">
-                Job Profile
+              <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1">
+                Job Details
               </div>
-              <div className="text-lg font-semibold text-slate-900">
+              <div className="text-lg font-bold text-slate-900">
                 {panelJob.client}
               </div>
-              <div className="text-xs text-slate-500">{panelJob.title}</div>
+              <div className="text-xs text-slate-600 mt-0.5">{panelJob.title}</div>
             </div>
             <button
               onClick={closePanel}
-              className="rounded-lg border border-slate-200 px-3 py-1 text-xs text-slate-500 hover:text-slate-900 hover:border-slate-400 transition-colors"
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:border-slate-400 hover:shadow-sm transition-all"
             >
-              Close
+              ✕ Close
             </button>
           </div>
 
-          <div className="h-[calc(100%-64px)] overflow-y-auto p-4 space-y-6">
-            <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase tracking-widest text-slate-500">
+          <div className="h-[calc(100%-72px)] overflow-y-auto p-5 space-y-5">
+            <section className="rounded-lg border border-slate-300 bg-slate-50 p-4 space-y-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">
                   Schedule
                 </span>
-                <span className="text-[10px] uppercase tracking-widest text-slate-500">
+                <span className="text-[10px] uppercase tracking-widest px-2 py-1 rounded-md bg-slate-200 text-slate-700 font-semibold">
                   {panelJob.status}
                 </span>
               </div>
-              <div className="text-sm text-slate-900">
+              <div className="text-sm font-semibold text-slate-900">
                 {panelStart
                   ? formatDisplayDate(toDateKey(panelStart))
                   : "No date set"}
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-slate-600 font-medium">
                 {panelStart && panelEnd
                   ? `${formatTime(panelStart)} - ${formatTime(panelEnd)}`
                   : "Time not set"}
               </div>
-              <div className="text-xs text-slate-500">Team: {panelTeam}</div>
-              <div className="flex flex-wrap gap-2 text-xs">
+              <div className="text-xs text-slate-600">
+                <span className="font-semibold">Team:</span> {panelTeam}
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs pt-2 border-t border-slate-200">
                 <span
-                  className={`rounded-full px-2 py-0.5 ${
+                  className={`rounded-md px-2.5 py-1 font-medium border ${
                     panelJob.cleaningTeam && panelJob.cleaningTeam.length > 0
-                      ? "bg-blue-50 text-blue-700"
+                      ? "bg-blue-50 text-blue-700 border-blue-200"
                       : panelJob.email
-                      ? "bg-slate-100 text-slate-700"
-                      : "bg-slate-100 text-slate-600"
+                      ? "bg-slate-100 text-slate-700 border-slate-200"
+                      : "bg-slate-100 text-slate-600 border-slate-200"
                   }`}
                 >
                   {panelJob.cleaningTeam && panelJob.cleaningTeam.length > 0
@@ -1384,18 +1405,18 @@ export default function CalendarPage() {
                     : "New Lead"}
                 </span>
                 <span
-                  className={`rounded-full px-2 py-0.5 ${
+                  className={`rounded-md px-2.5 py-1 font-medium border ${
                     panelJob.paid
-                      ? "bg-blue-50 text-blue-700"
-                      : "bg-slate-100 text-slate-600"
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : "bg-slate-100 text-slate-600 border-slate-200"
                   }`}
                 >
-                  {panelJob.paid ? "Paid" : "Unpaid"}
+                  {panelJob.paid ? "✓ Paid" : "Unpaid"}
                 </span>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
+                <span className="rounded-md bg-slate-100 border border-slate-200 px-2.5 py-1 text-slate-700 font-medium">
                   {panelJob.hours ? `${panelJob.hours} hrs` : "Hours TBD"}
                 </span>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
+                <span className="rounded-md bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-emerald-700 font-semibold">
                   ${panelJob.price || 0}
                 </span>
               </div>
@@ -1404,36 +1425,36 @@ export default function CalendarPage() {
             {!pendingMove && (
               <button
                 onClick={() => openReschedule(panelJob)}
-                className="w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+                className="w-full rounded-lg border-2 border-blue-300 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-700 hover:bg-blue-100 hover:border-blue-400 shadow-sm hover:shadow transition-all"
               >
-                Reschedule Job
+                📅 Reschedule Job
               </button>
             )}
 
             {pendingMove && (
-              <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase tracking-widest text-slate-500">
-                    Reschedule
+              <section className="rounded-lg border-2 border-blue-200 bg-blue-50/30 p-4 space-y-4">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] uppercase tracking-widest text-blue-700 font-bold">
+                    📅 Reschedule Form
                   </span>
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-slate-700 font-semibold bg-white px-2 py-1 rounded-md border border-slate-200">
                     {previewStart && previewEnd
                       ? `${formatTime(previewStart)} - ${formatTime(previewEnd)}`
-                      : ""}
+                      : "Select time"}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <label className="text-xs text-slate-600">
+                  <label className="text-xs text-slate-700 font-semibold">
                     Date
                     <input
                       type="date"
                       value={targetDate}
                       onChange={(event) => setTargetDate(event.target.value)}
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                      className="mt-1.5 w-full rounded-md border-2 border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
                     />
                   </label>
-                  <label className="text-xs text-slate-600">
+                  <label className="text-xs text-slate-700 font-semibold">
                     Start time
                     <select
                       id="time-input"
@@ -1441,7 +1462,7 @@ export default function CalendarPage() {
                       onChange={(event) =>
                         setTargetTime(snapTimeValue(event.target.value))
                       }
-                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                      className="mt-1.5 w-full rounded-md border-2 border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
                     >
                       {timeOptions.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -1653,21 +1674,34 @@ export default function CalendarPage() {
                 </div>
 
                 {saveError && (
-                  <div className="text-xs text-rose-600">{saveError}</div>
+                  <div className="rounded-md bg-rose-50 border border-rose-200 px-3 py-2 text-xs text-rose-700 flex items-center gap-2">
+                    <span className="font-bold">⚠</span>
+                    {saveError}
+                  </div>
                 )}
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 pt-2">
                   <button
                     onClick={handleRescheduleConfirm}
                     disabled={saving}
-                    className="flex-1 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-500 transition-colors disabled:opacity-60"
+                    className="flex-1 rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-500 shadow-sm hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    {saving ? "Saving..." : "Confirm reschedule"}
+                    {saving ? (
+                      <>
+                        <span className="animate-spin">⏳</span>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        ✓ Confirm Reschedule
+                      </>
+                    )}
                   </button>
                   <button
                     type="button"
                     onClick={() => setPendingMove(null)}
-                    className="rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-600 hover:text-slate-900 hover:border-slate-400 transition-colors"
+                    disabled={saving}
+                    className="rounded-lg border-2 border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:text-slate-900 hover:border-slate-400 hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancel
                   </button>
