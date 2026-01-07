@@ -1,5 +1,7 @@
 import { getDashboardData, calculateTimeSaved } from "@/lib/google-sheets";
 
+export const revalidate = 0; // Disable caching for this page
+
 export default async function DashboardPage() {
   const data = await getDashboardData();
   const timeSaved = calculateTimeSaved(data.jobs);
