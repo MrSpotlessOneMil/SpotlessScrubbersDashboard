@@ -2,9 +2,14 @@
 // Replaces: Jobs-sheet change listener webhook from Google Sheets
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, logAutomationEvent } from '@/lib/supabase';
+import {
+  getCleanersByNames,
+  getJobById,
+  logAutomationEvent,
+  supabase,
+  upsertCleanerAssignment,
+} from '@/lib/supabase';
 import { sendSMS } from '@/lib/integrations/openphone';
-import { notifyCleanerAssignment } from '@/lib/integrations/telegram';
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,22 +31,9 @@ export async function POST(request: NextRequest) {
     const jobId = parseInt(body.jobId, 10);
 
     // Get the full job details with customer info
-    const { data: job, error } = await supabase
-      .from('jobs')
-      .select(`
-        *,
-        customers (
-          id,
-          name,
-          phone_number,
-          email,
-          address
-        )
-      `)
-      .eq('id', jobId)
-      .single();
+    const job = await getJobById(jobId);
 
-    if (error || !job) {
+    if (!job) {
       console.error('Job not found:', jobId);
       return NextResponse.json(
         {
@@ -132,26 +124,21 @@ export async function POST(request: NextRequest) {
       if (job.cleaning_team && job.cleaning_team.length > 0) {
         try {
           // Look up cleaners and notify them
-          const { data: cleaners } = await supabase
-            .from('cleaners')
-            .select('*')
-            .in('name', job.cleaning_team);
+          const cleaners = await getCleanersByNames(job.cleaning_team);
 
-          if (cleaners) {
-            for (const cleaner of cleaners) {
-              if (cleaner.telegram_id) {
-                // Create assignment record
-                await supabase.from('cleaner_assignments').upsert({
-                  cleaner_id: cleaner.id,
-                  job_id: jobId,
-                  status: 'pending',
-                  notified_at: new Date().toISOString(),
-                });
+          for (const cleaner of cleaners) {
+            if (cleaner.telegram_id) {
+              // Create assignment record
+              await upsertCleanerAssignment({
+                cleaner_id: cleaner.id,
+                job_id: jobId,
+                status: 'pending',
+                notified_at: new Date().toISOString(),
+              });
 
-                // Send Telegram notification (implement in telegram.ts)
-                console.log(`Would notify ${cleaner.name} via Telegram`);
-                notifications.push(`cleaner_${cleaner.id}_notified`);
-              }
+              // Send Telegram notification (implement in telegram.ts)
+              console.log(`Would notify ${cleaner.name} via Telegram`);
+              notifications.push(`cleaner_${cleaner.id}_notified`);
             }
           }
         } catch (error) {

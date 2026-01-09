@@ -43,6 +43,7 @@ export interface Database {
           business_email?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       customers: {
         Row: {
@@ -108,6 +109,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       jobs: {
         Row: {
@@ -188,6 +190,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       calls: {
         Row: {
@@ -235,6 +238,7 @@ export interface Database {
           extracted_data?: Json | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       messages: {
         Row: {
@@ -276,6 +280,7 @@ export interface Database {
           ai_generated?: boolean;
           created_at?: string;
         };
+        Relationships: [];
       };
       cleaners: {
         Row: {
@@ -326,6 +331,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       cleaner_assignments: {
         Row: {
@@ -358,6 +364,7 @@ export interface Database {
           response_message?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       cleaner_blocked_dates: {
         Row: {
@@ -381,6 +388,7 @@ export interface Database {
           reason?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       automation_logs: {
         Row: {
@@ -419,6 +427,7 @@ export interface Database {
           error_message?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       quote_templates: {
         Row: {
@@ -463,6 +472,7 @@ export interface Database {
           active?: boolean;
           created_at?: string;
         };
+        Relationships: [];
       };
       sms_templates: {
         Row: {
@@ -489,11 +499,13 @@ export interface Database {
           active?: boolean;
           created_at?: string;
         };
+        Relationships: [];
       };
     };
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
-    Enums: Record<string, never>;
+    Views: {};
+    Functions: {};
+    Enums: {};
+    CompositeTypes: {};
   };
 }
 

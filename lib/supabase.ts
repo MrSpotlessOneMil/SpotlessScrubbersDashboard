@@ -1,5 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Database } from './types/database';
+import type {
+  Cleaner,
+  CleanerAssignment,
+  CleanerAssignmentInsert,
+  Call,
+  Customer,
+  CustomerInsert,
+  Database,
+  Json,
+  Job,
+  JobInsert,
+  Message,
+  QuoteTemplate,
+} from './types/database';
 
 // Create Supabase client for server-side operations
 // Uses service role key for full access (webhooks, automation)
@@ -30,7 +43,7 @@ export function isSupabaseConfigured(): boolean {
 // CUSTOMER OPERATIONS
 // ============================================
 
-export async function getCustomerByPhone(phone: string) {
+export async function getCustomerByPhone(phone: string): Promise<Customer | null> {
   const { data, error } = await supabase
     .from('customers')
     .select('*')
@@ -41,22 +54,7 @@ export async function getCustomerByPhone(phone: string) {
   return data;
 }
 
-export async function upsertCustomer(customer: {
-  phone_number: string;
-  name: string;
-  email?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  zip_code?: string;
-  square_footage?: number;
-  bedrooms?: number;
-  bathrooms?: number;
-  pets?: string;
-  frequency?: string;
-  source?: string;
-  notes?: string;
-}) {
+export async function upsertCustomer(customer: CustomerInsert): Promise<Customer> {
   const { data, error } = await supabase
     .from('customers')
     .upsert(customer, { onConflict: 'phone_number' })
@@ -64,10 +62,16 @@ export async function upsertCustomer(customer: {
     .single();
 
   if (error) throw error;
+  if (!data) throw new Error('Failed to upsert customer');
   return data;
 }
 
-export async function getCustomerContext(customerId: number) {
+export async function getCustomerContext(customerId: number): Promise<{
+  customer: Customer | null;
+  jobs: Job[];
+  calls: Call[];
+  messages: Message[];
+}> {
   const [customerResult, jobsResult, callsResult, messagesResult] = await Promise.all([
     supabase.from('customers').select('*').eq('id', customerId).single(),
     supabase.from('jobs').select('*').eq('customer_id', customerId).order('created_at', { ascending: false }).limit(10),
@@ -87,19 +91,7 @@ export async function getCustomerContext(customerId: number) {
 // JOB OPERATIONS
 // ============================================
 
-export async function createJob(job: {
-  customer_id: number;
-  title: string;
-  date: string;
-  scheduled_at?: string;
-  cleaning_type?: string;
-  status?: string;
-  price?: number;
-  quote_amount?: number;
-  hours?: number;
-  notes?: string;
-  special_instructions?: string;
-}) {
+export async function createJob(job: JobInsert): Promise<Job> {
   const { data, error } = await supabase
     .from('jobs')
     .insert(job)
@@ -107,6 +99,7 @@ export async function createJob(job: {
     .single();
 
   if (error) throw error;
+  if (!data) throw new Error('Failed to create job');
   return data;
 }
 
@@ -123,7 +116,7 @@ export async function updateJob(jobId: number, updates: Partial<{
   stripe_payment_link: string;
   scheduled_at: string;
   notes: string;
-}>) {
+}>): Promise<Job> {
   const { data, error } = await supabase
     .from('jobs')
     .update(updates)
@@ -132,18 +125,36 @@ export async function updateJob(jobId: number, updates: Partial<{
     .single();
 
   if (error) throw error;
+  if (!data) throw new Error('Failed to update job');
   return data;
 }
 
-export async function getJobById(jobId: number) {
-  const { data, error } = await supabase
+export async function getJobById(
+  jobId: number
+): Promise<(Job & { customers?: Customer | null }) | null> {
+  const { data: job, error } = await supabase
     .from('jobs')
-    .select('*, customers(*)')
+    .select('*')
     .eq('id', jobId)
     .single();
 
   if (error) throw error;
-  return data;
+  if (!job) return null;
+
+  const { data: customer, error: customerError } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('id', job.customer_id)
+    .single();
+
+  if (customerError && customerError.code !== 'PGRST116') {
+    throw customerError;
+  }
+
+  return {
+    ...job,
+    customers: customer || null,
+  };
 }
 
 export async function getUnassignedJobs() {
@@ -184,8 +195,8 @@ export async function createCall(call: {
   outcome?: string;
   sentiment?: string;
   booking_intent?: boolean;
-  extracted_data?: Record<string, unknown>;
-}) {
+  extracted_data?: Json;
+}): Promise<Call> {
   const { data, error } = await supabase
     .from('calls')
     .insert(call)
@@ -193,10 +204,11 @@ export async function createCall(call: {
     .single();
 
   if (error) throw error;
+  if (!data) throw new Error('Failed to create call');
   return data;
 }
 
-export async function getCallByVapiId(vapiCallId: string) {
+export async function getCallByVapiId(vapiCallId: string): Promise<Call | null> {
   const { data, error } = await supabase
     .from('calls')
     .select('*')
@@ -259,7 +271,7 @@ export async function getRecentMessages(customerId: number, limit = 20) {
 // CLEANER OPERATIONS
 // ============================================
 
-export async function getActiveCleaners() {
+export async function getActiveCleaners(): Promise<Cleaner[]> {
   const { data, error } = await supabase
     .from('cleaners')
     .select('*')
@@ -269,7 +281,7 @@ export async function getActiveCleaners() {
   return data || [];
 }
 
-export async function getCleanerByTelegramId(telegramId: string) {
+export async function getCleanerByTelegramId(telegramId: string): Promise<Cleaner | null> {
   const { data, error } = await supabase
     .from('cleaners')
     .select('*')
@@ -278,6 +290,16 @@ export async function getCleanerByTelegramId(telegramId: string) {
 
   if (error && error.code !== 'PGRST116') throw error;
   return data;
+}
+
+export async function getCleanersByNames(names: string[]): Promise<Cleaner[]> {
+  const { data, error } = await supabase
+    .from('cleaners')
+    .select('*')
+    .in('name', names);
+
+  if (error) throw error;
+  return data || [];
 }
 
 export async function createCleanerAssignment(assignment: {
@@ -293,6 +315,20 @@ export async function createCleanerAssignment(assignment: {
     .single();
 
   if (error) throw error;
+  return data;
+}
+
+export async function upsertCleanerAssignment(
+  assignment: CleanerAssignmentInsert
+): Promise<CleanerAssignment> {
+  const { data, error } = await supabase
+    .from('cleaner_assignments')
+    .upsert(assignment)
+    .select()
+    .single();
+
+  if (error) throw error;
+  if (!data) throw new Error('Failed to upsert cleaner assignment');
   return data;
 }
 
@@ -333,7 +369,7 @@ export async function getCleanerBlockedDates(cleanerId: number, startDate: strin
 // QUOTE TEMPLATE OPERATIONS
 // ============================================
 
-export async function getQuoteTemplate(cleaningType: string) {
+export async function getQuoteTemplate(cleaningType: string): Promise<QuoteTemplate | null> {
   const { data, error } = await supabase
     .from('quote_templates')
     .select('*')
@@ -345,7 +381,7 @@ export async function getQuoteTemplate(cleaningType: string) {
   return data;
 }
 
-export async function getAllQuoteTemplates() {
+export async function getAllQuoteTemplates(): Promise<QuoteTemplate[]> {
   const { data, error } = await supabase
     .from('quote_templates')
     .select('*')
@@ -380,14 +416,18 @@ export async function logAutomationEvent(log: {
   source: string;
   customer_id?: number;
   job_id?: number;
-  payload?: Record<string, unknown>;
-  result?: Record<string, unknown>;
+  payload?: Json | Record<string, unknown>;
+  result?: Json | Record<string, unknown>;
   success?: boolean;
   error_message?: string;
 }) {
   const { data, error } = await supabase
     .from('automation_logs')
-    .insert(log)
+    .insert({
+      ...log,
+      payload: log.payload as Json | undefined,
+      result: log.result as Json | undefined,
+    })
     .select()
     .single();
 

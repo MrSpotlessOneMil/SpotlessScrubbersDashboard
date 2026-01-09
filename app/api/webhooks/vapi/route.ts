@@ -11,6 +11,7 @@ import {
 import { extractDataFromTranscript } from '@/lib/integrations/ai';
 import { sendSMS, normalizePhoneNumber } from '@/lib/integrations/openphone';
 import { calculateQuote, createBooking, formatQuoteMessage } from '@/lib/automation/booking-engine';
+import type { Json } from '@/lib/types/database';
 import type { VapiCallEndedPayload, VapiExtractedData } from '@/lib/types/webhooks';
 
 export async function POST(request: NextRequest) {
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
       outcome,
       sentiment: 'neutral',
       booking_intent: extractedData.bookingIntent === true,
-      extracted_data: extractedData as Record<string, unknown>,
+      extracted_data: extractedData as Json,
     });
 
     // Log automation event
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
         duration: callRecord.duration_seconds,
         outcome,
       },
-      result: { extractedData },
+      result: { extractedData } as unknown as Json,
       success: true,
     });
 

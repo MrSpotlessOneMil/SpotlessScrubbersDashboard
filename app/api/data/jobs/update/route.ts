@@ -4,7 +4,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase, updateJob, getJobById, logAutomationEvent } from '@/lib/supabase';
 import { sendSMS } from '@/lib/integrations/openphone';
-import { notifyCleanerAssignment } from '@/lib/integrations/telegram';
 
 export async function POST(request: NextRequest) {
   try {
