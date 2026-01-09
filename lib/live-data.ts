@@ -43,7 +43,7 @@ export async function getLiveDashboardData(): Promise<DashboardData | null> {
       SELECT j.*, c.phone_number, c.name as client_name, c.email as client_email
       FROM jobs j
       JOIN customers c ON j.customer_id = c.id
-      ORDER BY j.date DESC
+      ORDER BY j.created_at DESC
     `);
     console.log(`✅ [DEBUG] Found ${jobsResult.rows.length} jobs`);
 
@@ -65,7 +65,7 @@ export async function getLiveDashboardData(): Promise<DashboardData | null> {
 
     // Transform jobs to app format
     const jobs: Job[] = jobsResult.rows.map(row => {
-      const dateValue = row.scheduled_at ?? row.date;
+      const dateValue = row.scheduled_at ?? row.date ?? row.created_at;
       const dateString = dateValue instanceof Date ? dateValue.toISOString() : String(dateValue);
       const createdValue = row.created_at;
       const createdAt = createdValue instanceof Date ? createdValue.toISOString() : createdValue ? String(createdValue) : undefined;
