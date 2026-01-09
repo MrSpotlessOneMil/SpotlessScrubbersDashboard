@@ -10,8 +10,8 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
 
     // Build query based on filters
-    let query = supabase
-      .from('jobs')
+    let query: any = (supabase
+      .from('jobs') as any)
       .select(`
         *,
         customers (

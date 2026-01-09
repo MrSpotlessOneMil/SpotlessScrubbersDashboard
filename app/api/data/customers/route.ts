@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     const phone = searchParams.get('phone');
     if (phone) {
       const normalizedPhone = normalizePhoneNumber(phone);
-      const customer = await getCustomerByPhone(normalizedPhone);
+      const customer: any = await getCustomerByPhone(normalizedPhone);
 
       if (!customer) {
         return NextResponse.json(
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
     }
 
     // List all customers with optional filters
-    let query = supabase.from('customers').select('*');
+    let query: any = (supabase.from('customers') as any).select('*');
 
     // Filter by source
     const source = searchParams.get('source');
@@ -113,9 +113,9 @@ export async function GET(request: NextRequest) {
     const includeStats = searchParams.get('includeStats') === 'true';
     if (includeStats && customers) {
       const customersWithStats = await Promise.all(
-        customers.map(async (customer) => {
-          const { data: jobs } = await supabase
-            .from('jobs')
+        customers.map(async (customer: any) => {
+          const { data: jobs } = await (supabase
+            .from('jobs') as any)
             .select('id, status, paid')
             .eq('customer_id', customer.id);
 
