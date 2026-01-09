@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       const cleanersWithAvailability = await Promise.all(
         cleaners.map(async (cleaner: any) => {
           // Get blocked dates
-          const blockedDates = await getCleanerBlockedDates(
+          const blockedDates: any[] = await getCleanerBlockedDates(
             cleaner.id,
             startDate,
             endDate
@@ -59,12 +59,12 @@ export async function GET(request: NextRequest) {
 
           return {
             ...cleaner,
-            blockedDates: blockedDates.map((bd) => bd.date),
+            blockedDates: blockedDates.map((bd: any) => bd.date),
             assignments: assignments || [],
             availableDates: calculateAvailableDates(
               startDate,
               endDate,
-              blockedDates.map((bd) => bd.date),
+              blockedDates.map((bd: any) => bd.date),
               assignments || []
             ),
           };
