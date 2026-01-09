@@ -122,8 +122,8 @@ export async function GET(request: NextRequest) {
           return {
             ...customer,
             totalJobs: jobs?.length || 0,
-            completedJobs: jobs?.filter((j) => j.status === 'completed').length || 0,
-            paidJobs: jobs?.filter((j) => j.paid).length || 0,
+            completedJobs: jobs?.filter((j: any) => j.status === 'completed').length || 0,
+            paidJobs: jobs?.filter((j: any) => j.paid).length || 0,
           };
         })
       );
