@@ -55,7 +55,7 @@ export default async function DashboardPage() {
             ? `${message.content.slice(0, 72)}...`
             : message.content,
         time: message.timestamp,
-        meta: message.role === "client" ? "Client message" : "OSIRIS response"
+        meta: message.role === "client" ? "Client message" : "The Clean Machine response"
       }))
     )
   ];
@@ -71,7 +71,7 @@ export default async function DashboardPage() {
         {/* HERO */}
         <div className="text-center space-y-8 py-8">
           <h1 className="text-8xl font-semibold neon-glow tracking-wide">
-            OSIRIS
+            The Clean Machine
           </h1>
           <div className="flex items-center justify-center">
             <div className="px-4 py-1.5 rounded-full border border-purple-400/20">
@@ -167,7 +167,7 @@ export default async function DashboardPage() {
 
           <div className="text-center pt-4">
             <p className="text-xs text-zinc-600">
-              Powered by OSIRIS AI
+              Powered by The Clean Machine AI
             </p>
           </div>
         </div>

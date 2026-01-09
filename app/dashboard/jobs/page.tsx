@@ -23,7 +23,7 @@ export default async function JobsPage() {
             Activity
           </h1>
           <p className="text-sm text-zinc-600 tracking-wide">
-            Everything handled by OSIRIS
+            Everything handled by The Clean Machine
           </p>
         </div>
 

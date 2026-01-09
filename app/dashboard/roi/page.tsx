@@ -24,7 +24,7 @@ export default async function ROIPage() {
             Impact
           </h1>
           <p className="text-sm text-zinc-500 tracking-wide">
-            What OSIRIS generated for you
+            What The Clean Machine generated for you
           </p>
         </div>
 
@@ -40,10 +40,10 @@ export default async function ROIPage() {
             </div>
           </div>
 
-          {/* Total Cost of OSIRIS */}
+          {/* Total System Cost */}
           <div className="text-center space-y-3">
             <div className="text-[10px] font-medium text-zinc-500 uppercase tracking-[0.2em]">
-              OSIRIS Cost ({bookedJobs} jobs x $15)
+              The Clean Machine Cost ({bookedJobs} jobs x $15)
             </div>
             <div className="text-5xl md:text-7xl font-bold text-zinc-500">
               ${osirisCost.toLocaleString()}
@@ -63,7 +63,7 @@ export default async function ROIPage() {
           {/* Bottom Message */}
           <div className="text-center pt-8">
             <p className="text-base text-zinc-500">
-              OSIRIS paid for itself{' '}
+              The Clean Machine paid for itself{' '}
               <span className="text-2xl text-emerald-400 font-semibold">{multiplier}x</span>{' '}
               over.
             </p>

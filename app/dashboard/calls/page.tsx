@@ -252,7 +252,7 @@ export default function CallsPage() {
               {/* Footer */}
               <div className="p-3 border-t border-zinc-800/30 bg-zinc-900/50">
                 <p className="text-center text-[10px] text-zinc-600 uppercase tracking-wider">
-                  Read-only transcript powered by OSIRIS
+                  Read-only transcript powered by The Clean Machine
                 </p>
               </div>
             </div>

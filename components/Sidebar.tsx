@@ -19,7 +19,7 @@ export function Sidebar() {
     <aside className="w-64 glass-card border-r border-zinc-800/30 min-h-screen flex flex-col">
       <div className="p-8 flex-1">
         <h2 className="text-4xl font-semibold neon-glow tracking-wide mb-16">
-          OSIRIS
+          The Clean Machine
         </h2>
         <nav className="space-y-1">
           {navItems.map((item) => {

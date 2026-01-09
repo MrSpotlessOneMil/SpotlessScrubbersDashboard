@@ -10,7 +10,7 @@ export function SystemStatus() {
   return (
     <div className="glass-card rounded-3xl p-8">
       <h2 className="text-[10px] font-medium text-zinc-600 mb-6 uppercase tracking-[0.2em]">
-        OSIRIS System Status
+        The Clean Machine System Status
       </h2>
       <div className="space-y-3">
         {systems.map((system) => (

@@ -30,7 +30,7 @@ export function MessageBubble({ role, content, timestamp, showTimestamp = true }
             ? 'text-purple-200'
             : 'text-emerald-200'
         }`}>
-          {role === 'client' ? 'Customer' : role === 'bot' ? 'OSIRIS' : 'You'}
+          {role === 'client' ? 'Customer' : role === 'bot' ? 'The Clean Machine' : 'You'}
         </div>
 
         {/* Message content */}

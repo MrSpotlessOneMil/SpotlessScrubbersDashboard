@@ -21,10 +21,10 @@ export function ROIFooter({ revenue, laborCost, osirisCost }: ROIFooterProps) {
           </div>
         </div>
 
-        {/* Total OSIRIS Cost */}
+        {/* Total System Cost */}
         <div className="text-center space-y-2">
           <div className="text-[10px] font-medium text-zinc-600 uppercase tracking-[0.2em]">
-            Total Cost of OSIRIS
+            Total Cost of The Clean Machine
           </div>
           <div className="text-6xl font-light text-zinc-500">
             ${osirisCost.toLocaleString()}
@@ -44,7 +44,7 @@ export function ROIFooter({ revenue, laborCost, osirisCost }: ROIFooterProps) {
         {/* Bottom Message */}
         <div className="text-center pt-8 border-t border-zinc-800/50">
           <p className="text-sm text-zinc-500">
-            OSIRIS paid for itself <span className="text-purple-400 font-medium">{multiplier}x</span> over.
+            The Clean Machine paid for itself <span className="text-purple-400 font-medium">{multiplier}x</span> over.
           </p>
         </div>
       </div>
