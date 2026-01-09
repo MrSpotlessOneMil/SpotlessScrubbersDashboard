@@ -12,8 +12,8 @@ export async function GET(request: NextRequest) {
     const includeInactive = searchParams.get('includeInactive') === 'true';
 
     // Get cleaners based on active status
-    const query = supabase
-      .from('cleaners')
+    const query = (supabase
+      .from('cleaners') as any)
       .select('*')
       .order('name', { ascending: true });
 
@@ -39,8 +39,8 @@ export async function GET(request: NextRequest) {
           );
 
           // Get existing job assignments in date range
-          const { data: assignments } = await supabase
-            .from('cleaner_assignments')
+          const { data: assignments } = await (supabase
+            .from('cleaner_assignments') as any)
             .select(`
               *,
               jobs (
@@ -139,8 +139,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const { data, error } = await supabase
-      .from('cleaners')
+    const { data, error } = await (supabase
+      .from('cleaners') as any)
       .upsert({
         name: body.name,
         phone: body.phone,
