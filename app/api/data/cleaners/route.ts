@@ -28,9 +28,9 @@ export async function GET(request: NextRequest) {
     }
 
     // If date range provided, get blocked dates and assignments for each cleaner
-    if (startDate && endDate && cleaners) {
+    if (startDate && endDate && cleaners && cleaners.length > 0) {
       const cleanersWithAvailability = await Promise.all(
-        cleaners.map(async (cleaner) => {
+        cleaners.map(async (cleaner: any) => {
           // Get blocked dates
           const blockedDates = await getCleanerBlockedDates(
             cleaner.id,
