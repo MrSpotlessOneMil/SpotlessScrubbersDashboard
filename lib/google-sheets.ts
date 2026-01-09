@@ -257,17 +257,223 @@ async function fetchGoogleSheetsData(): Promise<DashboardData | null> {
   }
 }
 
+type DemoOverlay = {
+  jobs: Job[];
+  calls: Call[];
+  profiles: CallerProfile[];
+};
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function withTime(date: Date, hours: number, minutes = 0) {
+  const next = new Date(date);
+  next.setHours(hours, minutes, 0, 0);
+  return next;
+}
+
+function formatDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateTime(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}:00`;
+}
+
+function buildDemoOverlay(): DemoOverlay {
+  const now = new Date();
+  const leadDay = addDays(now, 1);
+  const quoteDay = addDays(now, 2);
+  const scheduledDay = addDays(now, 3);
+  const extraDayOne = addDays(now, 5);
+  const extraDayTwo = addDays(now, 7);
+  const completedDay = addDays(now, -2);
+
+  const leadCreated = formatDateTime(withTime(addDays(now, -1), 10, 30));
+  const quoteCreated = formatDateTime(withTime(addDays(now, -1), 14, 0));
+  const scheduledCreated = formatDateTime(withTime(addDays(now, -2), 9, 15));
+  const completedCreated = formatDateTime(withTime(addDays(now, -4), 16, 0));
+
+  const scheduledStart = formatDateTime(withTime(scheduledDay, 9, 0));
+  const extraStartOne = formatDateTime(withTime(extraDayOne, 13, 0));
+  const extraStartTwo = formatDateTime(withTime(extraDayTwo, 10, 30));
+  const quoteStart = formatDateTime(withTime(quoteDay, 11, 0));
+  const completedStart = formatDateTime(withTime(completedDay, 9, 0));
+
+  const jobs: Job[] = [
+    {
+      id: "demo-lead-1",
+      title: "Initial Walkthrough - Silver Lake Loft",
+      date: formatDate(leadDay),
+      status: "scheduled",
+      client: "Ava Brooks",
+      cleaningTeam: [],
+      callDurationSeconds: 0,
+      booked: false,
+      paid: false,
+      price: 0,
+      phoneNumber: "3105559011",
+      createdAt: leadCreated
+    },
+    {
+      id: "demo-quote-1",
+      title: "Deep Clean Quote - Canyon Residence",
+      date: formatDate(quoteDay),
+      scheduledAt: quoteStart,
+      status: "scheduled",
+      client: "Mia Patel",
+      cleaningTeam: [],
+      callDurationSeconds: 0,
+      booked: true,
+      paid: false,
+      price: 480,
+      phoneNumber: "3105559012",
+      email: "mia.patel@example.com",
+      createdAt: quoteCreated
+    },
+    {
+      id: "demo-scheduled-1",
+      title: "Premium Condo Service",
+      date: formatDate(scheduledDay),
+      scheduledAt: scheduledStart,
+      status: "scheduled",
+      client: "Jordan Lee",
+      cleaningTeam: ["Alex", "Rosa"],
+      callDurationSeconds: 0,
+      booked: true,
+      paid: false,
+      price: 650,
+      phoneNumber: "3105559013",
+      email: "jordan.lee@example.com",
+      createdAt: scheduledCreated
+    },
+    {
+      id: "demo-scheduled-2",
+      title: "Weekly Maintenance - Loft A",
+      date: formatDate(extraDayOne),
+      scheduledAt: extraStartOne,
+      status: "scheduled",
+      client: "Jordan Lee",
+      cleaningTeam: ["Alex", "Rosa"],
+      callDurationSeconds: 0,
+      booked: true,
+      paid: false,
+      price: 420,
+      phoneNumber: "3105559013",
+      email: "jordan.lee@example.com",
+      createdAt: scheduledCreated
+    },
+    {
+      id: "demo-scheduled-3",
+      title: "Move-In Prep - Lakeview Unit",
+      date: formatDate(extraDayTwo),
+      scheduledAt: extraStartTwo,
+      status: "scheduled",
+      client: "Jordan Lee",
+      cleaningTeam: ["Alex", "Rosa"],
+      callDurationSeconds: 0,
+      booked: true,
+      paid: false,
+      price: 520,
+      phoneNumber: "3105559013",
+      email: "jordan.lee@example.com",
+      createdAt: scheduledCreated
+    },
+    {
+      id: "demo-completed-1",
+      title: "Move-Out Refresh - Brentwood",
+      date: formatDate(completedDay),
+      scheduledAt: completedStart,
+      status: "completed",
+      client: "Carlos Vega",
+      cleaningTeam: ["Maria", "Luis"],
+      callDurationSeconds: 0,
+      booked: true,
+      paid: true,
+      price: 980,
+      phoneNumber: "3105559014",
+      email: "carlos.vega@example.com",
+      hours: 2.5,
+      createdAt: completedCreated
+    }
+  ];
+
+  const profiles: CallerProfile[] = [
+    {
+      phoneNumber: "3105559011",
+      callerName: "Ava Brooks",
+      totalCalls: 0,
+      messages: [],
+      lastCallDate: leadCreated
+    },
+    {
+      phoneNumber: "3105559012",
+      callerName: "Mia Patel",
+      totalCalls: 0,
+      messages: [],
+      lastCallDate: quoteCreated
+    },
+    {
+      phoneNumber: "3105559013",
+      callerName: "Jordan Lee",
+      totalCalls: 0,
+      messages: [],
+      lastCallDate: scheduledStart
+    },
+    {
+      phoneNumber: "3105559014",
+      callerName: "Carlos Vega",
+      totalCalls: 0,
+      messages: [],
+      lastCallDate: completedStart
+    }
+  ];
+
+  return { jobs, calls: [], profiles };
+}
+
+function applyDemoOverlay(data: DashboardData): DashboardData {
+  const overlay = buildDemoOverlay();
+  const jobs = [...data.jobs, ...overlay.jobs];
+  const calls = [...data.calls, ...overlay.calls];
+  const profiles = [...data.profiles, ...overlay.profiles];
+  const addedBooked = overlay.jobs.filter((job) => job.booked).length;
+  const addedPaid = overlay.jobs.filter((job) => job.paid).length;
+
+  return {
+    ...data,
+    jobs,
+    calls,
+    profiles,
+    jobsBooked: data.jobsBooked + addedBooked,
+    quotesSent: data.quotesSent + overlay.jobs.length,
+    cleanersScheduled: data.cleanersScheduled + addedPaid,
+    callsAnswered: data.callsAnswered + overlay.calls.length
+  };
+}
+
 export async function getDashboardData(): Promise<DashboardData> {
   // 1. Try Supabase first
   const liveData = await getLiveDashboardData();
   if (liveData) {
-    return liveData;
+    return applyDemoOverlay(liveData);
   }
 
   // 2. Try Google Sheets
   const sheetsData = await fetchGoogleSheetsData();
   if (sheetsData) {
-    return sheetsData;
+    return applyDemoOverlay(sheetsData);
   }
 
   // 3. Fallback to mock data - BIG NUMBERS
@@ -958,7 +1164,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     }
   ];
 
-  return {
+  const fallback: DashboardData = {
     jobsBooked: jobs.filter(j => j.booked).length,
     quotesSent: jobs.length + 3, // a few extra quotes
     cleanersScheduled: jobs.filter(j => j.paid).length,
@@ -968,6 +1174,8 @@ export async function getDashboardData(): Promise<DashboardData> {
     profiles,
     isLiveData: false
   };
+
+  return applyDemoOverlay(fallback);
 }
 
 export function calculateTimeSaved(jobs: Job[]): number {
